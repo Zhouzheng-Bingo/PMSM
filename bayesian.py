@@ -36,6 +36,7 @@ def objective(hidden_dim, lr):
         for batch_X, batch_y in train_loader:
             optimizer.zero_grad()
             y_pred = model(batch_X).squeeze()
+            # print("y_pred shape:", y_pred.shape) y_pred shape: torch.Size([1024])
             loss = criterion(y_pred, batch_y)
             loss.backward()
             optimizer.step()
@@ -44,34 +45,42 @@ def objective(hidden_dim, lr):
 
         # 更新学习率
         scheduler.step(avg_loss)
-
+    # print("X_test shape:", X_test.shape)
     # 预测
     model.eval()
     with torch.no_grad():
         predictions = model(X_test)
-    predictions = predictions.cpu().numpy()
-    y_test_np = y_test.cpu().numpy()
+    predictions = predictions.view(-1).cpu().numpy()
+    # ("y_test shape:", y_test.shape)
+    y_test_np = y_test.view(-1).cpu().numpy()
 
     # 返回负MSE，因为我们希望最小化这个值
     return -np.mean((predictions - y_test_np) ** 2)
 
-# 定义超参数的范围
-pbounds = {
-    'hidden_dim': (32, 256),
-    'lr': (0.001, 0.01),
-}
+if __name__ == '__main__':
 
-optimizer = BayesianOptimization(
-    f=objective,
-    pbounds=pbounds,
-    verbose=2,  # 1: print only when a maximum is observed, 0: silent
-    random_state=1,
-)
+    # 定义超参数的范围
+    pbounds = {
+        'hidden_dim': (32, 256),
+        'lr': (0.001, 0.01),
+    }
 
-# 开始优化，这里我们进行10次迭代
-optimizer.maximize(
-    init_points=2,
-    n_iter=8,
-)
+    optimizer = BayesianOptimization(
+        f=objective,
+        pbounds=pbounds,
+        verbose=2,  # 1: print only when a maximum is observed, 0: silent
+        random_state=1,
+    )
 
-print(optimizer.max)
+    # 开始优化，这里我们进行10次迭代
+    optimizer.maximize(
+        init_points=2,
+        n_iter=8,
+    )
+
+    # optimizer.maximize(
+    #     init_points=1,
+    #     n_iter=0,
+    # )
+
+    print(optimizer.max)

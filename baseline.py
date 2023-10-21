@@ -58,63 +58,67 @@ class LSTMModel(nn.Module):
         y_pred = self.linear(lstm_out.view(x.size(0), -1))
         return y_pred
 
-model = LSTMModel(X_train.shape[2], 128).to(device)  # 更改隐藏层单元数量为128
-criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.005)
 
-# 添加学习率调度器
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5, verbose=True)
+if __name__ == '__main__':
+    best_hidden_dim = 246
+    best_lr = 0.002483
+    model = LSTMModel(X_train.shape[2], best_hidden_dim).to(device)  # 使用最佳的hidden_dim
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=best_lr)  # 使用最佳的学习率
 
-# 用于保存每个epoch的损失值
-losses = []
+    # 添加学习率调度器
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5, verbose=True)
 
-# 训练模型
-epochs = 20
-for epoch in range(epochs):
-    model.train()
-    epoch_losses = []
-    for batch_X, batch_y in train_loader:
-        optimizer.zero_grad()
-        y_pred = model(batch_X).squeeze()
-        loss = criterion(y_pred, batch_y)
-        loss.backward()
-        optimizer.step()
-        epoch_losses.append(loss.item())
-    avg_loss = np.mean(epoch_losses)
-    losses.append(avg_loss)
-    print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss}")
+    # 用于保存每个epoch的损失值
+    losses = []
 
-    # 更新学习率
-    scheduler.step(avg_loss)
+    # 训练模型
+    epochs = 20
+    for epoch in range(epochs):
+        model.train()
+        epoch_losses = []
+        for batch_X, batch_y in train_loader:
+            optimizer.zero_grad()
+            y_pred = model(batch_X).squeeze()
+            loss = criterion(y_pred, batch_y)
+            loss.backward()
+            optimizer.step()
+            epoch_losses.append(loss.item())
+        avg_loss = np.mean(epoch_losses)
+        losses.append(avg_loss)
+        print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss}")
 
-# 预测
-model.eval()
-with torch.no_grad():
-    predictions = model(X_test)
+        # 更新学习率
+        scheduler.step(avg_loss)
 
-# 将预测结果从 GPU 移到 CPU
-predictions = predictions.cpu().numpy()
-y_test_np = y_test.cpu().numpy()
+    # 预测
+    model.eval()
+    with torch.no_grad():
+        predictions = model(X_test)
 
-# 绘制收敛图和预测结果图
-plt.figure(figsize=(15, 5))
+    # 将预测结果从 GPU 移到 CPU
+    predictions = predictions.cpu().numpy()
+    y_test_np = y_test.cpu().numpy()
 
-# 绘制收敛图
-plt.subplot(1, 2, 1)
-plt.plot(losses, label="Training Loss")
-plt.xlabel("Epoch")
-plt.ylabel("Loss")
-plt.title("Convergence Graph")
-plt.legend()
+    # 绘制收敛图和预测结果图
+    plt.figure(figsize=(15, 5))
 
-# 绘制预测结果图
-plt.subplot(1, 2, 2)
-plt.plot(predictions, label="Predictions", color="red")
-plt.plot(y_test_np, label="Actual Values", color="blue")
-plt.xlabel("Samples")
-plt.ylabel("Values")
-plt.title("Predictions vs Actual Values")
-plt.legend()
+    # 绘制收敛图
+    plt.subplot(1, 2, 1)
+    plt.plot(losses, label="Training Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Convergence Graph")
+    plt.legend()
 
-plt.tight_layout()
-plt.show()
+    # 绘制预测结果图
+    plt.subplot(1, 2, 2)
+    plt.plot(predictions, label="Predictions", color="red")
+    plt.plot(y_test_np, label="Actual Values", color="blue")
+    plt.xlabel("Samples")
+    plt.ylabel("Values")
+    plt.title("Predictions vs Actual Values")
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
