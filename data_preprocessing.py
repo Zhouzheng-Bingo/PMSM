@@ -3,19 +3,27 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 
-def load_and_preprocess_data(file_path, lags=20):
-    data = pd.read_csv(file_path, encoding='gbk')
-    print(data.columns)
-    # 创建滞后变量
+def load_and_preprocess_data(file_path, lags=1):
+    data = pd.read_csv(file_path)
+
+    # 选择相关的列
+    relevant_columns = ['time', 'id_command', 'id_feedback', 'iq_command', 'iq_feedback']
+    data = data[relevant_columns]
+
+    # 创建反馈值的滞后变量
     for i in range(1, lags + 1):
-        data[f'指令_lag_{i}'] = data['指令'].shift(i)
-        data[f'实际_lag_{i}'] = data['实际'].shift(i)
+        data[f'id_feedback_lag_{i}'] = data['id_feedback'].shift(i)
+        data[f'iq_feedback_lag_{i}'] = data['iq_feedback'].shift(i)
+
     data.dropna(inplace=True)
 
     # 分割数据
-    features = ['指令'] + [f'指令_lag_{i}' for i in range(1, lags + 1)] + [f'实际_lag_{i}' for i in range(1, lags + 1)]
-    X = data[features]
-    y = data['实际']
+    feature_cols = ['time', 'id_command', 'iq_command'] + [f'id_feedback_lag_{i}' for i in range(1, lags + 1)] + [
+        f'iq_feedback_lag_{i}' for i in range(1, lags + 1)]
+    output_cols = ['id_feedback', 'iq_feedback']
+
+    X = data[feature_cols]
+    y = data[output_cols]
 
     # 数据归一化
     scaler = StandardScaler()

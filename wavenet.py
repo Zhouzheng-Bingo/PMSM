@@ -118,11 +118,11 @@ class CombinedModel(nn.Module):
 if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(torch.cuda.is_available())
-    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data("./data/电机转动角度(弧度).csv")
+    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data("/path/to/你的新数据集.csv")
 
-    # Convert data to torch.Tensor and adjust shape to fit LSTM
-    X_train = torch.tensor(X_train_np, dtype=torch.float32).to(device).view(-1, X_train_np.shape[1], 1)
-    X_test = torch.tensor(X_test_np, dtype=torch.float32).to(device).view(-1, X_test_np.shape[1], 1)
+    # 将数据转换为 torch.Tensor
+    X_train = torch.tensor(X_train_np, dtype=torch.float32).to(device)
+    X_test = torch.tensor(X_test_np, dtype=torch.float32).to(device)
     y_train = torch.tensor(y_train_np.values, dtype=torch.float32).to(device)
     y_test = torch.tensor(y_test_np.values, dtype=torch.float32).to(device)
 
@@ -130,7 +130,7 @@ if __name__ == '__main__':
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 
     # Initialize SimpleWaveNet model
-    model = CombinedModel(input_dim=X_train.shape[2], hidden_dim=64, output_dim=1, num_tcn_blocks=3,
+    model = CombinedModel(input_dim=X_train.shape[2], hidden_dim=64, output_dim=2, num_tcn_blocks=3,
                           num_attention_blocks=1, num_wavenet_blocks=15, num_lstm_layers=2).to(device)
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
