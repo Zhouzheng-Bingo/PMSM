@@ -80,29 +80,37 @@ class WaveNetBlock(nn.Module):
 
 
 class CombinedModel(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_tcn_blocks=3, num_wavenet_blocks=3, num_attention_blocks=1, num_lstm_layers=2):
         super(CombinedModel, self).__init__()
 
-        # TCN层
-        self.tcn = TCNBlock(input_dim, hidden_dim)
+        # 创建一个TCNBlock的列表
+        self.tcn_blocks = nn.ModuleList([TCNBlock(input_dim if i == 0 else hidden_dim, hidden_dim) for i in range(num_tcn_blocks)])
 
-        # Attention层
-        self.multi_head_attention = MultiHeadAttention(embed_size=hidden_dim, heads=8)
+        # Attention层的列表
+        self.attention_blocks = nn.ModuleList([MultiHeadAttention(embed_size=hidden_dim, heads=8) for _ in range(num_attention_blocks)])
 
-        # WaveNet层
-        self.wavenet = WaveNetBlock(hidden_dim, hidden_dim)
+        # 创建一个WaveNetBlock的列表
+        self.wavenet_blocks = nn.ModuleList([WaveNetBlock(hidden_dim, hidden_dim) for _ in range(num_wavenet_blocks)])
 
-        # LSTM层
-        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers=2, batch_first=True)
+        # LSTM层的列表
+        self.lstm_layers = nn.ModuleList([nn.LSTM(hidden_dim, hidden_dim, num_layers=1, batch_first=True) for _ in range(num_lstm_layers)])
 
         # 输出层
         self.fc = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x):
-        x = self.tcn(x)
-        x = self.multi_head_attention(x, x, x)
-        x = self.wavenet(x)
-        x, _ = self.lstm(x)
+        for tcn_block in self.tcn_blocks:
+            x = tcn_block(x)
+
+        for attention_block in self.attention_blocks:
+            x = attention_block(x, x, x)
+
+        for wavenet_block in self.wavenet_blocks:
+            x = wavenet_block(x)
+
+        for lstm_layer in self.lstm_layers:
+            x, _ = lstm_layer(x)
+
         x = self.fc(x[:, -1, :])
         return x
 
@@ -122,7 +130,8 @@ if __name__ == '__main__':
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 
     # Initialize SimpleWaveNet model
-    model = CombinedModel(input_dim=X_train.shape[2], hidden_dim=64, output_dim=1).to(device)
+    model = CombinedModel(input_dim=X_train.shape[2], hidden_dim=64, output_dim=1, num_tcn_blocks=3,
+                          num_attention_blocks=1, num_wavenet_blocks=15, num_lstm_layers=2).to(device)
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
@@ -151,14 +160,29 @@ if __name__ == '__main__':
         # Update the learning rate
         scheduler.step(avg_loss)
 
+    # # Make predictions
+    # model.eval()
+    # with torch.no_grad():
+    #     predictions = model(X_test)
+    #
+    # # Transfer predictions from GPU to CPU
+    # predictions = predictions.cpu().numpy()
+    # y_test_np = y_test.cpu().numpy()
+
     # Make predictions
     model.eval()
+    test_dataset = TensorDataset(X_test, y_test)
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)  # 使用较小的批量大小
+    all_predictions = []
+    all_y_test = []
     with torch.no_grad():
-        predictions = model(X_test)
+        for X_batch, y_batch in test_loader:
+            predictions = model(X_batch)
+            all_predictions.append(predictions.cpu().numpy())
+            all_y_test.append(y_batch.cpu().numpy())
 
-    # Transfer predictions from GPU to CPU
-    predictions = predictions.cpu().numpy()
-    y_test_np = y_test.cpu().numpy()
+    all_predictions = np.concatenate(all_predictions, axis=0)
+    all_y_test = np.concatenate(all_y_test, axis=0)
 
     # Plot convergence graph and predictions
     plt.figure(figsize=(15, 5))
@@ -173,8 +197,8 @@ if __name__ == '__main__':
 
     # Plot predictions vs. actual values
     plt.subplot(1, 2, 2)
-    plt.plot(predictions, label="Predictions", color="red")
-    plt.plot(y_test_np, label="Actual Values", color="blue")
+    plt.plot(all_predictions, label="Predictions", color="red")
+    plt.plot(all_y_test, label="Actual Values", color="blue")
     plt.xlabel("Samples")
     plt.ylabel("Values")
     plt.title("Predictions vs Actual Values")
@@ -182,3 +206,13 @@ if __name__ == '__main__':
 
     plt.tight_layout()
     plt.show()
+
+    # # Plot predictions vs. actual values
+    # plt.figure(figsize=(10, 5))
+    # plt.plot(all_predictions, label="Predictions", color="red")
+    # plt.plot(all_y_test, label="Actual Values", color="blue")
+    # plt.xlabel("Samples")
+    # plt.ylabel("Values")
+    # plt.title("Predictions vs Actual Values")
+    # plt.legend()
+    # plt.show()

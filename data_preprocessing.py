@@ -3,7 +3,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 
-def load_and_preprocess_data(file_path, lags=5):
+def load_and_preprocess_data(file_path, lags=20):
     data = pd.read_csv(file_path, encoding='gbk')
     print(data.columns)
     # 创建滞后变量
