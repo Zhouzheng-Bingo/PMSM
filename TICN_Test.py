@@ -56,7 +56,7 @@ class Model(nn.Module):
         self.dropout1 = nn.Dropout(0.5)
         self.dropout2 = nn.Dropout(0.5)
 
-        self.embedding_layer = nn.Linear(23, 16)
+        self.embedding_layer = nn.Linear(201, 16)
 
         # Multi-head attention layer
         self.multihead_attn = nn.MultiheadAttention(embed_dim=16, num_heads=4)
@@ -66,8 +66,9 @@ class Model(nn.Module):
 
     def forward(self, x):
         # 将输入维度从 [batch_size, 23, seq_len] 转换为 [batch_size, 16, seq_len]
+        # print(x.shape)
         x = self.embedding_layer(x.transpose(1, 2)).transpose(1, 2)
-
+        # print(x.shape)
         x1 = self.inception1(x)
         x1 = F.relu(self.norm1(x1))
         x1 = self.batch_norm1(x1)  # 使用批处理标准化
@@ -82,7 +83,7 @@ class Model(nn.Module):
 
         # Combining outputs
         x = x1 + x2
-
+        # print(x.shape)
         # Transposing for multihead attention
         # 确保数据形状是 [seq_len, batch_size, 16]
         x = x.permute(2, 0, 1)
@@ -108,13 +109,12 @@ def load_and_preprocess_data(file_path, lags=1):
     # 选择相关的列
     relevant_columns = ['time', 'id_command', 'id_feedback', 'iq_command', 'iq_feedback']
     data = data[relevant_columns]
-
     # 创建反馈值的滞后变量
-    for i in range(1, lags + 1):
-        data[f'id_feedback_lag_{i}'] = data['id_feedback'].shift(i)
-        data[f'iq_feedback_lag_{i}'] = data['iq_feedback'].shift(i)
-
-    data.dropna(inplace=True)
+    lag_data = pd.concat([data[col].shift(i) for i in range(1, lags + 1) for col in ['id_feedback', 'iq_feedback']],
+                         axis=1)
+    lag_columns = [f'{col}_lag_{i}' for i in range(1, lags + 1) for col in ['id_feedback', 'iq_feedback']]
+    lag_data.columns = lag_columns
+    data = pd.concat([data, lag_data], axis=1)
 
     # 数据归一化
     feature_cols = ['time', 'id_command', 'iq_command'] + [f'id_feedback_lag_{i}' for i in range(1, lags + 1)] + [
@@ -142,10 +142,11 @@ def create_loader(X, y):
 
 if __name__ == '__main__':
     # 加载和预处理数据
-    X_train, X_test, y_train, y_test = load_and_preprocess_data("./data/电流_id_iq.csv", lags=10)
+    X_train, X_test, y_train, y_test = load_and_preprocess_data("./data/电流_id_iq.csv", lags=99)
     train_loader = create_loader(X_train, y_train)
     test_loader = create_loader(X_test, y_test)
-
+    # print(X_train.shape, X_test.shape, y_train.shape, y_test.shape)
+    # 201:99个历史id和iq，1个当前id和iq，1个时间，99*2+1*2+1=201
     # 定义模型
     model = Model()
 
@@ -153,14 +154,14 @@ if __name__ == '__main__':
     criterion = torch.nn.MSELoss()
     # optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
     # 添加L2正则化 (weight decay)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0005, weight_decay=1e-5)  # L2
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-5)  # L2
 
     # 如果想添加L1正则化，可以使用如下方法：
     # 但是注意，L1正则化可能会使得一些权重变为0，导致模型部分参数无效。
     def l1_penalty(var):
         return torch.norm(var, 1)
 
-    l1_weight = 1e-5
+    # l1_weight = 1e-5
 
     epochs = 10
     train_losses = []
@@ -169,15 +170,19 @@ if __name__ == '__main__':
         model.train()
         epoch_train_loss = 0
         for inputs, targets in train_loader:
-            inputs = inputs.view(inputs.size(0), 23, -1)
+            # print(targets.shape)
+            inputs = inputs.view(inputs.size(0), 201, -1)
+            # print(inputs.shape)
             optimizer.zero_grad()
             outputs = model(inputs)
-            l1_loss = sum(l1_penalty(param) for param in model.parameters())
-            loss = criterion(outputs, targets) + l1_weight * l1_loss  # 在损失中添加L1正则化
+            # print(outputs.shape)
+            # l1_loss = sum(l1_penalty(param) for param in model.parameters())
+            # loss = criterion(outputs, targets) + l1_weight * l1_loss  # 在损失中添加L1正则化
+            loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
             epoch_train_loss += loss.item()
-
+            print(epoch_train_loss)
         train_losses.append(epoch_train_loss / len(train_loader))
 
         model.eval()
@@ -186,7 +191,8 @@ if __name__ == '__main__':
         all_targets = []
         with torch.no_grad():
             for inputs, targets in test_loader:
-                inputs = inputs.view(inputs.size(0), 23, -1)
+                # print(inputs.shape)
+                inputs = inputs.view(inputs.size(0), 201, -1) # 确保数据形状是 [batch_size, seq_len, 16]
                 outputs = model(inputs)
                 epoch_test_loss += criterion(outputs, targets).item()
                 all_preds.append(outputs)
