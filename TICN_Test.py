@@ -41,8 +41,10 @@ class Model(nn.Module):
         self.inception2 = InceptionLayer(16, 16)
 
         # WeightNorm and ReLU
-        self.norm1 = nn.utils.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
-        self.norm2 = nn.utils.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
+        # self.norm1 = nn.utils.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
+        # self.norm2 = nn.utils.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
+        self.norm1 = nn.utils.parametrizations.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
+        self.norm2 = nn.utils.parametrizations.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
 
         # Dilated Causal Conv Layer
         self.dilated_conv1 = CausalConv1d(16, 16, kernel_size=3, dilation=2)
@@ -57,7 +59,7 @@ class Model(nn.Module):
         self.multihead_attn = nn.MultiheadAttention(embed_dim=16, num_heads=4)
 
         # Dense Layer
-        self.fc = nn.Linear(16, 1)
+        self.fc = nn.Linear(16, 2)
 
     def forward(self, x):
         # 将输入维度从 [batch_size, 23, seq_len] 转换为 [batch_size, 16, seq_len]
@@ -85,7 +87,7 @@ class Model(nn.Module):
 
         # Passing through dense layer
         # 确保数据形状回到 [batch_size, seq_len, 16] 以便通过全连接层
-        x = self.fc(attn_output.permute(1, 0, 2))
+        x = self.fc(attn_output.permute(1, 0, 2)).squeeze(1)
 
         return x
 
