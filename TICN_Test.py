@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
-import numpy as np
+import matplotlib.pyplot as plt
 
 
 class InceptionLayer(nn.Module):
@@ -41,17 +41,20 @@ class Model(nn.Module):
         self.inception2 = InceptionLayer(16, 16)
 
         # WeightNorm and ReLU
-        # self.norm1 = nn.utils.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
-        # self.norm2 = nn.utils.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
-        self.norm1 = nn.utils.parametrizations.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
-        self.norm2 = nn.utils.parametrizations.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
+        self.norm1 = nn.utils.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
+        self.norm2 = nn.utils.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
+        # self.norm1 = nn.utils.parametrizations.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
+        # self.norm2 = nn.utils.parametrizations.weight_norm(nn.Conv1d(16, 16, kernel_size=1))
+        self.batch_norm1 = nn.BatchNorm1d(16)  # 添加批处理标准化
+        self.batch_norm2 = nn.BatchNorm1d(16)  # 添加批处理标准化
 
         # Dilated Causal Conv Layer
         self.dilated_conv1 = CausalConv1d(16, 16, kernel_size=3, dilation=2)
         self.dilated_conv2 = CausalConv1d(16, 16, kernel_size=3, dilation=2)
 
         # Dropout
-        self.dropout = nn.Dropout(0.5)
+        self.dropout1 = nn.Dropout(0.5)
+        self.dropout2 = nn.Dropout(0.5)
 
         self.embedding_layer = nn.Linear(23, 16)
 
@@ -67,12 +70,14 @@ class Model(nn.Module):
 
         x1 = self.inception1(x)
         x1 = F.relu(self.norm1(x1))
-        x1 = self.dropout(x1)
+        x1 = self.batch_norm1(x1)  # 使用批处理标准化
+        x1 = self.dropout1(x1)
         x1 = self.dilated_conv1(x1)
 
         x2 = self.inception2(x)
         x2 = F.relu(self.norm2(x2))
-        x2 = self.dropout(x2)
+        x2 = self.batch_norm2(x2)  # 使用批处理标准化
+        x2 = self.dropout2(x2)
         x2 = self.dilated_conv2(x2)
 
         # Combining outputs
@@ -138,7 +143,6 @@ def create_loader(X, y):
 if __name__ == '__main__':
     # 加载和预处理数据
     X_train, X_test, y_train, y_test = load_and_preprocess_data("./data/电流_id_iq.csv", lags=10)
-    # print("Input shape:", X_train.shape)
     train_loader = create_loader(X_train, y_train)
     test_loader = create_loader(X_test, y_test)
 
@@ -147,25 +151,83 @@ if __name__ == '__main__':
 
     # 训练模型
     criterion = torch.nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+    # 添加L2正则化 (weight decay)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0005, weight_decay=1e-5)  # L2
+
+    # 如果想添加L1正则化，可以使用如下方法：
+    # 但是注意，L1正则化可能会使得一些权重变为0，导致模型部分参数无效。
+    def l1_penalty(var):
+        return torch.norm(var, 1)
+
+    l1_weight = 1e-5
 
     epochs = 10
+    train_losses = []
+    test_losses = []
     for epoch in range(epochs):
         model.train()
+        epoch_train_loss = 0
         for inputs, targets in train_loader:
             inputs = inputs.view(inputs.size(0), 23, -1)
             optimizer.zero_grad()
             outputs = model(inputs)
-            loss = criterion(outputs, targets)
+            l1_loss = sum(l1_penalty(param) for param in model.parameters())
+            loss = criterion(outputs, targets) + l1_weight * l1_loss  # 在损失中添加L1正则化
             loss.backward()
             optimizer.step()
+            epoch_train_loss += loss.item()
+
+        train_losses.append(epoch_train_loss / len(train_loader))
 
         model.eval()
-        test_loss = 0
+        epoch_test_loss = 0
+        all_preds = []
+        all_targets = []
         with torch.no_grad():
             for inputs, targets in test_loader:
                 inputs = inputs.view(inputs.size(0), 23, -1)
                 outputs = model(inputs)
-                test_loss += criterion(outputs, targets).item()
+                epoch_test_loss += criterion(outputs, targets).item()
+                all_preds.append(outputs)
+                all_targets.append(targets)
 
-        print(f"Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}, Test Loss: {test_loss/len(test_loader):.4f}")
+        test_losses.append(epoch_test_loss / len(test_loader))
+        print(f"Epoch {epoch+1}/{epochs}, Loss: {train_losses[-1]:.4f}, Test Loss: {test_losses[-1]:.4f}")
+
+    # 绘制测试集的电流iq和电流id的预测值和真实值
+    all_preds = torch.cat(all_preds, dim=0).numpy()
+    all_targets = torch.cat(all_targets, dim=0).numpy()
+
+    # 绘制训练和测试损失、测试集的电流id的预测值和真实值、测试集的电流iq的预测值和真实值
+    plt.figure(figsize=(18, 5))
+
+    # 绘制训练和测试损失
+    plt.subplot(1, 3, 1)
+    plt.plot(train_losses, label='Train Loss')
+    plt.plot(test_losses, label='Test Loss')
+    plt.title('Loss Convergence')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    # 绘制测试集的电流id的预测值和真实值
+    plt.subplot(1, 3, 2)
+    plt.plot(all_preds[:, 0], label='Predicted id', linestyle='--', color='blue')
+    plt.plot(all_targets[:, 0], label='True id', color='lightsalmon')
+    plt.title('Test Set Predictions for id')
+    plt.xlabel('Sample')
+    plt.ylabel('Current id')
+    plt.legend()
+
+    # 绘制测试集的电流iq的预测值和真实值
+    plt.subplot(1, 3, 3)
+    plt.plot(all_preds[:, 1], label='Predicted iq', linestyle='--', color='red')
+    plt.plot(all_targets[:, 1], label='True iq', color='lightblue')
+    plt.title('Test Set Predictions for iq')
+    plt.xlabel('Sample')
+    plt.ylabel('Current iq')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
