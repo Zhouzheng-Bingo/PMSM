@@ -110,6 +110,9 @@ if __name__ == '__main__':
     # To save loss for each epoch
     losses = []
 
+    # 在训练循环外定义一个变量来存储使用模型预测的概率
+    sampling_prob = 0.0  # 初始时完全依赖于真实数据
+
     # Train the model
     epochs = 20
     for epoch in range(epochs):
@@ -117,18 +120,51 @@ if __name__ == '__main__':
         epoch_losses = []
         for batch_X, batch_y in train_loader:
             # print(batch_X.shape, batch_y.shape)
-            optimizer.zero_grad()
-            y_pred = model(batch_X).squeeze()
-            # print(y_pred.shape, batch_y.shape)
-            loss = criterion(y_pred, batch_y)
-            loss.backward()
-            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5)
-            optimizer.step()
-            epoch_losses.append(loss.item())
+            # 使用模型预测作为输入的概率
+            use_model_pred = torch.bernoulli(torch.tensor([sampling_prob])).bool().item()
+
+            if use_model_pred:
+                # 初始化序列，将第一个元素设置为当前批次的输入
+                sequence = batch_X.clone().to(device)
+
+                # 存储模型预测
+                y_pred = []
+
+                for i in range(batch_X.size(1)):  # 假设batch_X的形状为[batch_size, seq_len, input_dim]
+                    # 使用当前序列获取模型的预测
+                    pred = model(sequence[:, :i + 1, :]).squeeze()
+
+                    # 存储预测
+                    y_pred.append(pred)
+
+                    # 如果不是序列的最后一步，用模型的预测更新序列
+                    if i + 1 < batch_X.size(1):
+                        sequence[:, i + 1, :] = pred
+
+                # 将预测列表转换为张量
+                y_pred = torch.stack(y_pred, dim=1)
+                # 计算损失
+                loss = criterion(y_pred, batch_y)
+                # 执行反向传播和优化
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                # 存储本批次的平均损失
+                epoch_losses.append(loss.item())
+            else:
+                optimizer.zero_grad()
+                y_pred = model(batch_X).squeeze()
+                # print(y_pred.shape, batch_y.shape)
+                loss = criterion(y_pred, batch_y)
+                loss.backward()
+                # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5)
+                optimizer.step()
+                epoch_losses.append(loss.item())
         avg_loss = np.mean(epoch_losses)
         losses.append(avg_loss)
         print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss}")
-
+        # 在每个epoch后增加使用模型预测的概率
+        sampling_prob = min(sampling_prob + 0.01, 1.0)  # 增加概率，但不超过1.0
         # Update the learning rate
         scheduler.step(avg_loss)
 
