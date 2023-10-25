@@ -66,13 +66,13 @@ csv_subset_file_speed = 'data/电机转速(转每秒)_subset.csv'
 df_speed_subset.to_csv(csv_subset_file_speed, index=False, encoding='utf-8')
 """
 # 处理电机转动角度(弧度).csv
-csv_file_angle = 'data/电机转动角度(弧度).csv'
-# 指定'ISO-8859-1'编码方式读取CSV文件
-df_angle = pd.read_csv(csv_file_angle, encoding='ISO-8859-1')
-df_angle_subset = df_angle.head(100000)
-csv_subset_file_angle = 'data/电机转动角度(弧度)_subset.csv'
-# 指定'UTF-8'编码方式保存CSV文件
-df_angle_subset.to_csv(csv_subset_file_angle, index=False, encoding='utf-8')
+# csv_file_angle = 'data/电机转动角度(弧度).csv'
+# # 指定'ISO-8859-1'编码方式读取CSV文件
+# df_angle = pd.read_csv(csv_file_angle, encoding='ISO-8859-1')
+# df_angle_subset = df_angle.head(100000)
+# csv_subset_file_angle = 'data/电机转动角度(弧度)_subset.csv'
+# # 指定'UTF-8'编码方式保存CSV文件
+# df_angle_subset.to_csv(csv_subset_file_angle, index=False, encoding='utf-8')
 
 
 # 电机转动角度(弧度).xlsx这个文件给的格式不好，需要修改

@@ -35,6 +35,7 @@ class ResNet(nn.Module):
     def forward(self, x):
         # (batch_size, input_dim, seq_len) -> (batch_size, hidden_dim, seq_len)
         x = x.transpose(1, 2)
+        # print(x.shape)
         x = self.conv1(x)
         x = self.blocks(x)
         # (batch_size, seq_len, hidden_dim)
@@ -73,6 +74,7 @@ if __name__ == '__main__':
     X_test = torch.tensor(X_test_np, dtype=torch.float32).to(device).view(-1, X_test_np.shape[1], 1)
     y_train = torch.tensor(y_train_np.values, dtype=torch.float32).to(device)
     y_test = torch.tensor(y_test_np.values, dtype=torch.float32).to(device)
+    # print(y_train.shape, y_test.shape)
     # print(X_train.shape, y_train.shape, X_test.shape, y_test.shape)
     train_dataset = TensorDataset(X_train, y_train)
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
