@@ -80,7 +80,7 @@ if __name__ == '__main__':
     # Initialize the model with more residual blocks
     num_residual_blocks = 10  # for example, to have 10 residual blocks
     # model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1).to(device)
-    model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1, num_blocks=5).to(device)
+    model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1, num_blocks=1).to(device)
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
@@ -117,7 +117,7 @@ if __name__ == '__main__':
         predictions = model(X_test)
     # Transfer predictions from GPU to CPU
     predictions = predictions.cpu().numpy()
-    print(predictions)
+    # print(predictions)
     y_test_np = y_test.cpu().numpy()
 
     print("Predictions Min:", predictions.min())

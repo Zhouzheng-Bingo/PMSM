@@ -8,12 +8,13 @@ def load_and_preprocess_data(file_path, lags=5):
     print(data.columns)
     # 创建滞后变量
     for i in range(1, lags + 1):
-        data[f'指令_lag_{i}'] = data['指令'].shift(i)
+        # data[f'指令_lag_{i}'] = data['指令'].shift(i)
         data[f'实际_lag_{i}'] = data['实际'].shift(i)
     data.dropna(inplace=True)
 
     # 分割数据
-    features = ['指令'] + [f'指令_lag_{i}' for i in range(1, lags + 1)] + [f'实际_lag_{i}' for i in range(1, lags + 1)]
+    # features = ['指令'] + [f'指令_lag_{i}' for i in range(1, lags + 1)] + [f'实际_lag_{i}' for i in range(1, lags + 1)]
+    features = ['指令'] + [f'实际_lag_{i}' for i in range(1, lags + 1)]
     X = data[features]
     y = data['实际']
 
