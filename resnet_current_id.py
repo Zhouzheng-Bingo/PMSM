@@ -111,7 +111,7 @@ if __name__ == '__main__':
     losses = []
 
     # Train the model
-    epochs = 5
+    epochs = 20
     for epoch in range(epochs):
         model.train()
         epoch_losses = []
@@ -132,17 +132,47 @@ if __name__ == '__main__':
         # Update the learning rate
         scheduler.step(avg_loss)
 
-    # Make predictions
+    # # Make predictions
+    # model.eval()
+    # with torch.no_grad():
+    #     predictions = model(X_test)
+    # # Transfer predictions from GPU to CPU
+    # predictions = predictions.cpu().numpy()
+    # # print(predictions)
+    # y_test_np = y_test.cpu().numpy()
+    #
+    # print("Predictions Min:", predictions.min())
+    # print("Predictions Max:", predictions.max())
+    # print("Actual Values Min:", y_test_np.min())
+    # print("Actual Values Max:", y_test_np.max())
+
+    # Make predictions using the model's own previous predictions
     model.eval()
     with torch.no_grad():
-        predictions = model(X_test)
-    # Transfer predictions from GPU to CPU
-    predictions = predictions.cpu().numpy()
-    # print(predictions)
-    y_test_np = y_test.cpu().numpy()
+        # Initialize the sequence with history data
+        sequence = X_test.clone().to(device)
 
+        # To store model's predictions
+        predictions = []
+
+        for i in range(X_test.size(0)):
+            # Get the model's prediction for the current sequence
+            pred = model(sequence[i:i + 1])
+
+            # Store the prediction
+            predictions.append(pred.cpu().numpy())
+
+            # Update the sequence with the model's prediction
+            if i + 1 < X_test.size(0):
+                sequence[i + 1, -1] = pred
+
+        # Convert the list of predictions to a numpy array
+        predictions = np.concatenate(predictions, axis=0)
+
+    # Now, 'predictions' contains the model's predictions for the entire test set
     print("Predictions Min:", predictions.min())
     print("Predictions Max:", predictions.max())
+    y_test_np = y_test.cpu().numpy()
     print("Actual Values Min:", y_test_np.min())
     print("Actual Values Max:", y_test_np.max())
 
@@ -160,7 +190,7 @@ if __name__ == '__main__':
     # Plot predictions vs. actual values
     plt.subplot(1, 2, 2)
     plt.plot(predictions, label="Predictions", color="red")
-    plt.plot(y_test_np, label="Actual Values", color="blue")
+    # plt.plot(y_test_np, label="Actual Values", color="blue")
     plt.xlabel("Samples")
     plt.ylabel("Values")
     plt.title("Predictions vs Actual Values")
