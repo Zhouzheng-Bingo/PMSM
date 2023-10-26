@@ -99,7 +99,7 @@ if __name__ == '__main__':
     # Initialize the model with more residual blocks
     num_residual_blocks = 10  # for example, to have 10 residual blocks
     # model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1).to(device)
-    model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1, num_blocks=1).to(device)
+    model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1, num_blocks=10).to(device)
     criterion = nn.MSELoss()
     learning_rate = 0.001
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -114,7 +114,7 @@ if __name__ == '__main__':
     sampling_prob = 0.0  # 初始时完全依赖于真实数据
 
     # Train the model
-    epochs = 2
+    epochs = 20
     for epoch in range(epochs):
         model.train()
         epoch_losses = []
@@ -221,24 +221,62 @@ if __name__ == '__main__':
     print("Actual Values Min:", y_test_np.min())
     print("Actual Values Max:", y_test_np.max())
 
+    # # Plot convergence graph and predictions
+    # plt.figure(figsize=(15, 5))
+    #
+    # # Plot the convergence graph
+    # plt.subplot(1, 2, 1)
+    # plt.plot(losses, label="Training Loss")
+    # plt.xlabel("Epoch")
+    # plt.ylabel("Loss")
+    # plt.title("Convergence Graph")
+    # plt.legend()
+    #
+    # # Plot predictions vs. actual values
+    # plt.subplot(1, 2, 2)
+    # plt.plot(predictions, label="Predictions", color="red")
+    # # plt.plot(y_test_np, label="Actual Values", color="blue")
+    # plt.xlabel("Samples")
+    # plt.ylabel("Values")
+    # plt.title("Predictions vs Actual Values")
+    # plt.legend()
+    #
+    # # 计算预测值和实际值的最小值和最大值
+    # min_value = min(predictions.min(), y_test_np.min())
+    # max_value = max(predictions.max(), y_test_np.max())
+    # # 打印最小值和最大值
+    # print("Min value:", min_value)
+    # print("Max value:", max_value)
+    # plt.ylim(min_value, max_value)
+    #
+    # plt.tight_layout()
+    # plt.show()
+
     # Plot convergence graph and predictions
     plt.figure(figsize=(15, 5))
 
     # Plot the convergence graph
-    plt.subplot(1, 2, 1)
-    plt.plot(losses, label="Training Loss")
+    plt.subplot(1, 3, 1)
+    plt.plot(losses, label="Training Loss", color="blue")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
     plt.title("Convergence Graph")
     plt.legend()
 
-    # Plot predictions vs. actual values
-    plt.subplot(1, 2, 2)
-    plt.plot(predictions, label="Predictions", color="red")
-    # plt.plot(y_test_np, label="Actual Values", color="blue")
+    # Plot actual values
+    plt.subplot(1, 3, 2)
+    plt.plot(y_test_np, label="Actual Values", color="blue")
     plt.xlabel("Samples")
     plt.ylabel("Values")
-    plt.title("Predictions vs Actual Values")
+    plt.title("Actual Values")
+    plt.legend()
+
+    # Plot predictions
+    plt.subplot(1, 3, 3)
+    plt.plot(predictions, label="Predictions", color="red")
+    plt.xlabel("Samples")
+    plt.ylabel("Values")
+    plt.title("Predictions")
     plt.legend()
 
     # 计算预测值和实际值的最小值和最大值
@@ -251,3 +289,4 @@ if __name__ == '__main__':
 
     plt.tight_layout()
     plt.show()
+
