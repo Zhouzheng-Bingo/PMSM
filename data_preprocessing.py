@@ -17,7 +17,7 @@ def load_and_preprocess_data(file_path, lags=5):
     features = ['指令'] + [f'实际_lag_{i}' for i in range(1, lags + 1)]
     X = data[features]
     y = data['实际']
-    print(X.shape, y.shape)
+    # print(X.shape, y.shape)
     # 数据归一化
     scaler = StandardScaler()
     X = scaler.fit_transform(X)

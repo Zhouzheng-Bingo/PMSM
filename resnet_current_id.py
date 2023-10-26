@@ -85,7 +85,7 @@ if __name__ == '__main__':
     X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_id("./data/电流_id_iq(id).csv")
     # print(X_train_np.shape, X_test_np.shape, y_train_np.shape, y_test_np.shape)
     # Convert data to torch.Tensor and adjust shape to fit LSTM
-    X_train = torch.tensor(X_train_np, dtype=torch.float32).to(device).view(-1, X_train_np.shape[1], 1)
+    X_train = torch.tensor(X_train_np, dtype=torch.float32).to(device).view(-1, X_train_np.shape[1], 1) # (batch_size, seq_len, input_dim)
     X_test = torch.tensor(X_test_np, dtype=torch.float32).to(device).view(-1, X_test_np.shape[1], 1)
     # y_train = torch.tensor(y_train_np.values, dtype=torch.float32).to(device).view(-1, 1)
     # y_test = torch.tensor(y_test_np.values, dtype=torch.float32).to(device).view(-1, 1)
@@ -114,7 +114,7 @@ if __name__ == '__main__':
     sampling_prob = 0.0  # 初始时完全依赖于真实数据
 
     # Train the model
-    epochs = 20
+    epochs = 2
     for epoch in range(epochs):
         model.train()
         epoch_losses = []
@@ -124,31 +124,34 @@ if __name__ == '__main__':
             use_model_pred = torch.bernoulli(torch.tensor([sampling_prob])).bool().item()
 
             if use_model_pred:
-                # 初始化序列，将第一个元素设置为当前批次的输入
+                # 初始化序列
                 sequence = batch_X.clone().to(device)
 
-                # 存储模型预测
+                # 存储模型的预测
                 y_pred = []
 
-                for i in range(batch_X.size(1)):  # 假设batch_X的形状为[batch_size, seq_len, input_dim]
+                for i in range(sequence.size(2)):  # 遍历特征维度
                     # 使用当前序列获取模型的预测
-                    pred = model(sequence[:, :i + 1, :]).squeeze()
+                    pred = model(sequence).squeeze()
 
                     # 存储预测
                     y_pred.append(pred)
 
-                    # 如果不是序列的最后一步，用模型的预测更新序列
-                    if i + 1 < batch_X.size(1):
-                        sequence[:, i + 1, :] = pred
+                    # 更新序列
+                    if i + 1 < sequence.size(2):
+                        sequence[:, :, i + 1] = pred.unsqueeze(-1)
 
                 # 将预测列表转换为张量
-                y_pred = torch.stack(y_pred, dim=1)
+                y_pred = y_pred[-1].squeeze(-1)
+
                 # 计算损失
                 loss = criterion(y_pred, batch_y)
-                # 执行反向传播和优化
+
+                # 反向传播和优化
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+
                 # 存储本批次的平均损失
                 epoch_losses.append(loss.item())
             else:
@@ -192,18 +195,24 @@ if __name__ == '__main__':
         predictions = []
 
         for i in range(X_test.size(0)):
-            # Get the model's prediction for the current sequence
-            pred = model(sequence[i:i + 1])
+            # For each sample in the test set, we iterate over its features
+            sample_seq = sequence[i:i + 1]
 
-            # Store the prediction
-            predictions.append(pred.cpu().numpy())
+            for j in range(X_test.size(2) - 1):  # iterating over feature dimension except the last one
+                # Get the model's prediction for the current sequence
+                pred = model(sample_seq[:, :, :j + 1]).squeeze()
 
-            # Update the sequence with the model's prediction
-            if i + 1 < X_test.size(0):
-                sequence[i + 1, -1] = pred
+                # Update the sequence with the model's prediction
+                sample_seq[:, :, j + 1] = pred.unsqueeze(-1)
+
+            # After iterating over all features, get the final prediction
+            final_pred = model(sample_seq).squeeze()
+
+            # Store the final prediction
+            predictions.append(final_pred.cpu().numpy())
 
         # Convert the list of predictions to a numpy array
-        predictions = np.concatenate(predictions, axis=0)
+        predictions = np.array(predictions)
 
     # Now, 'predictions' contains the model's predictions for the entire test set
     print("Predictions Min:", predictions.min())
