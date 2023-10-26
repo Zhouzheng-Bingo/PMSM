@@ -105,7 +105,8 @@ def load_and_preprocess_data_angle(file_path, lags=5):
 
     # 选择相关的列
     relevant_columns = ['time', 'id_feedback', 'iq_feedback', 'motor_speed_feedback',
-                        'rotation_angle_command', 'rotation_angle_feedback']
+                        'rotation_angle_command', 'rotation_angle_feedback',
+                        'id_command', 'iq_command', 'motor_speed_command']
     data = data[relevant_columns]
 
     # 创建滞后变量
@@ -117,7 +118,7 @@ def load_and_preprocess_data_angle(file_path, lags=5):
     data.dropna(inplace=True)
 
     # 数据归一化
-    feature_cols = ['time', 'rotation_angle_command'] + \
+    feature_cols = ['time', 'rotation_angle_command', 'id_command', 'iq_command', 'motor_speed_command'] + \
                    [f'{col}_lag_{i}' for col in
                     ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback'] for i in
                     range(1, lags + 1)]
