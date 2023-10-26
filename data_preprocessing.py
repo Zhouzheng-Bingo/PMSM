@@ -96,8 +96,8 @@ def load_and_preprocess_data_iq(file_path, lags=5):
 
 def load_and_preprocess_data_angle(file_path, lags=5):
     """
-        这里的22是因为我们有1个 time 特征,
-        1个rotation_angle_command特征,
+        这里的25是因为我们有1个 time 特征,
+        1个rotation_angle_command特征,1个id_command，1个iq_command和1个motor_speed_command
         每个滞后变量5个，共4个这样的变量组
     """
 
@@ -123,6 +123,47 @@ def load_and_preprocess_data_angle(file_path, lags=5):
                     ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback'] for i in
                     range(1, lags + 1)]
     output_cols = 'rotation_angle_feedback'
+
+    X = data[feature_cols]
+    y = data[output_cols]
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+
+    # 数据集划分
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
+
+    return X_train, X_test, y_train, y_test
+
+
+def load_and_preprocess_data_multi_output(file_path, lags=5):
+    """
+        这里的25是因为我们有1个 time 特征,
+        1个rotation_angle_command特征,1个id_command，1个iq_command和1个motor_speed_command
+        每个滞后变量5个，共4个这样的变量组
+    """
+
+    data = pd.read_csv(file_path)
+
+    # 选择相关的列
+    relevant_columns = ['time', 'id_feedback', 'iq_feedback', 'motor_speed_feedback',
+                        'rotation_angle_command', 'rotation_angle_feedback',
+                        'id_command', 'iq_command', 'motor_speed_command']
+    data = data[relevant_columns]
+
+    # 创建滞后变量
+    for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']:
+        for i in range(1, lags + 1):
+            data[f'{col}_lag_{i}'] = data[col].shift(i)
+
+    # 去掉含有NA的行
+    data.dropna(inplace=True)
+
+    # 数据归一化
+    feature_cols = ['time', 'rotation_angle_command', 'id_command', 'iq_command', 'motor_speed_command'] + \
+                   [f'{col}_lag_{i}' for col in
+                    ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback'] for i in
+                    range(1, lags + 1)]
+    output_cols = ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']
 
     X = data[feature_cols]
     y = data[output_cols]
