@@ -33,12 +33,30 @@ class ResidualBlock(nn.Module):
         return out
 
 
+class Res2NetBlock(nn.Module):
+    def __init__(self, dim, num_splits=4, kernel_size=3, padding=1):
+        super(Res2NetBlock, self).__init__()
+        self.num_splits = num_splits
+        self.dim_split = dim // num_splits  # Determine the number of channels per split
+        self.splits = nn.ModuleList([nn.Conv1d(self.dim_split, self.dim_split, kernel_size, padding=padding) for _ in range(num_splits)])
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        chunks = torch.chunk(x, self.num_splits, dim=1)  # Split the feature map into multiple sub-features
+        output = []
+        for i in range(self.num_splits):
+            out_i = chunks[i] + self.splits[i](chunks[i])  # Apply the conv op independently to each split
+            output.append(out_i)
+        output = torch.cat(output, dim=1)  # Concatenate the processed splits back together
+        return self.relu(output)
+
+
 # ResNet Module Definition
 class ResNet(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_blocks=3):
         super(ResNet, self).__init__()
         self.conv1 = nn.Conv1d(input_dim, hidden_dim, kernel_size=1)
-        self.blocks = nn.Sequential(*[ResidualBlock(hidden_dim) for _ in range(num_blocks)])
+        self.blocks = nn.Sequential(*[Res2NetBlock(hidden_dim) for _ in range(num_blocks)])
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -51,7 +69,7 @@ class ResNet(nn.Module):
 
 
 class CombinedModel(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, num_blocks=3):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_blocks=3, num_heads=4):
         super(CombinedModel, self).__init__()
 
         # ResNet Layer
@@ -60,6 +78,9 @@ class CombinedModel(nn.Module):
         # LSTM层
         self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers=2, batch_first=True)
 
+        # 多头注意力模块
+        self.multihead_attn = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=num_heads, batch_first=True)
+
         # 输出层
         self.fc = nn.Linear(hidden_dim, output_dim)
 
@@ -67,7 +88,8 @@ class CombinedModel(nn.Module):
         # x = self.tcn(x)
         x = self.resnet(x)
         x, _ = self.lstm(x)
-        x = self.fc(x[:, -1, :])
+        attn_output, _ = self.multihead_attn(x, x, x)
+        x = self.fc(attn_output[:, -1, :])
         return x
 
 
@@ -99,7 +121,7 @@ if __name__ == '__main__':
     # Initialize the model with more residual blocks
     num_residual_blocks = 10  # for example, to have 10 residual blocks
     # model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1).to(device)
-    model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1, num_blocks=10).to(device)
+    model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1, num_blocks=10, num_heads=4).to(device)
     criterion = nn.MSELoss()
     learning_rate = 0.001
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
