@@ -150,11 +150,21 @@ def load_and_preprocess_data_multi_output(file_path, lags=5):
                         'motor_speed_feedback', 'rotation_angle_feedback']
     data = data[relevant_columns]
 
-    # 创建滞后变量
+    # # 创建滞后变量(5个)
+    # for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']:
+    #     for i in range(1, lags + 1):
+    #         data[f'{col}_lag_{i}'] = data[col].shift(i)
+
+    # 创建滞后变量(100个)
+    lag_data = {}
     for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']:
         for i in range(1, lags + 1):
-            data[f'{col}_lag_{i}'] = data[col].shift(i)
+            lag_data[f'{col}_lag_{i}'] = data[col].shift(i)
 
+    # 添加滞后变量到原始数据框
+    data = pd.concat([data, pd.DataFrame(lag_data)], axis=1)
+
+    # 以上创建完毕，下面开始处理数据
     # 去掉含有NA的行
     data.dropna(inplace=True)
 

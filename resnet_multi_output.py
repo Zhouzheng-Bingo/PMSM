@@ -104,7 +104,7 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(torch.cuda.is_available())
     # X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data("./data/电机转动角度(弧度).csv")
-    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_multi_output("./data/多数据源位置预测_all.csv")
+    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_multi_output("./data/多数据源位置预测_all.csv", lags=100)
     # print(X_train_np.shape, X_test_np.shape, y_train_np.shape, y_test_np.shape)
     # Convert data to torch.Tensor and adjust shape to fit LSTM
     X_train = torch.tensor(X_train_np, dtype=torch.float32).to(device).view(-1, X_train_np.shape[1], 1) # (batch_size, seq_len, input_dim)
@@ -119,12 +119,12 @@ if __name__ == '__main__':
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 
     # Initialize the model with more residual blocks
-    num_residual_blocks = 10  # for example, to have 10 residual blocks
+    num_residual_blocks = 20  # for example, to have 10 residual blocks
     # model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1).to(device)
     model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(device)
     criterion = nn.MSELoss()
-    learning_rate = 0.004125344887680161
-    weight_decay = 0.07187540405514171
+    learning_rate = 0.0002382091521841793
+    weight_decay = 0.06454389413796091
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
     # Add learning rate scheduler
