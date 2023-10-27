@@ -66,8 +66,8 @@ class CombinedModel(nn.Module):
 if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(torch.cuda.is_available())
-    # X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data("./data/电机转动角度(弧度).csv")
-    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data("./data/电机转速(转每秒).csv")
+    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data("./data/电机转动角度(弧度).csv")
+    # X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data("./data/电机转速(转每秒).csv")
     # print(X_train_np.shape, X_test_np.shape, y_train_np.shape, y_test_np.shape)
     # Convert data to torch.Tensor and adjust shape to fit LSTM
     X_train = torch.tensor(X_train_np, dtype=torch.float32).to(device).view(-1, X_train_np.shape[1], 1)
