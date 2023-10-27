@@ -123,8 +123,9 @@ if __name__ == '__main__':
     # model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1).to(device)
     model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(device)
     criterion = nn.MSELoss()
-    learning_rate = 0.001
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    learning_rate = 0.004125344887680161
+    weight_decay = 0.07187540405514171
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
     # Add learning rate scheduler
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5, verbose=True)
@@ -136,7 +137,7 @@ if __name__ == '__main__':
     sampling_prob = 0.0  # 初始时完全依赖于真实数据
 
     # Train the model
-    epochs = 20
+    epochs = 100
     for epoch in range(epochs):
         model.train()
         epoch_losses = []
