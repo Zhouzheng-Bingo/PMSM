@@ -8,12 +8,12 @@ from resnet_multi_output import CombinedModel
 
 
 def objective(lr, weight_decay):
-    model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=10, num_heads=4).to(device)
+    model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=22, num_heads=4).to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.MSELoss()
 
     # 训练模型
-    num_epochs = 20
+    num_epochs = 50
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0

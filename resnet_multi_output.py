@@ -119,7 +119,7 @@ if __name__ == '__main__':
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 
     # Initialize the model with more residual blocks
-    num_residual_blocks = 20  # for example, to have 10 residual blocks
+    num_residual_blocks = 22  # for example, to have 10 residual blocks
     # model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1).to(device)
     model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(device)
     criterion = nn.MSELoss()
@@ -137,7 +137,7 @@ if __name__ == '__main__':
     sampling_prob = 0.0  # 初始时完全依赖于真实数据
 
     # Train the model
-    epochs = 100
+    epochs = 20
     for epoch in range(epochs):
         model.train()
         epoch_losses = []
@@ -193,6 +193,12 @@ if __name__ == '__main__':
         sampling_prob = min(sampling_prob + 0.01, 1.0)  # 增加概率，但不超过1.0
         # Update the learning rate
         scheduler.step(avg_loss)
+
+    torch.save(model.state_dict(), './model/model_checkpoint_epoch20_lags100.pth')
+
+    model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(
+        device)
+    # model.load_state_dict(torch.load('./model_checkpoint_epoch20_lags100.pth')) # 如果模型没在内存加载模型
 
     # # Make predictions
     # model.eval()
@@ -304,3 +310,9 @@ if __name__ == '__main__':
 
     plt.tight_layout()
     plt.show()
+
+    import os
+
+    if not os.path.exists('./pic'):
+        os.makedirs('./pic')
+    plt.savefig('./pic/model_output_epoch20_lags100.png')
