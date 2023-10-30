@@ -1,3 +1,4 @@
+import pandas as pd
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -5,6 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import TensorDataset, DataLoader
 from data_preprocessing import load_and_preprocess_data_multi_output
+import os
+import json
 
 
 # Residual Block Definition
@@ -117,139 +120,201 @@ if __name__ == '__main__':
     # print(X_train.shape, y_train.shape, X_test.shape, y_test.shape)
     train_dataset = TensorDataset(X_train, y_train)
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-
     # Initialize the model with more residual blocks
-    num_residual_blocks = 22  # for example, to have 10 residual blocks
-    # model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1).to(device)
-    model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(device)
-    criterion = nn.MSELoss()
-    learning_rate = 0.0002382091521841793
-    weight_decay = 0.06454389413796091
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    num_residual_blocks = 22  # for example, to have 22 residual blocks
+    train_flag = 1  # 训练并评估：train_flag = 1&test_flag = 0
+    test_flag = 0  # 测试：train_flag = 0&test_flag = 1
 
-    # Add learning rate scheduler
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5, verbose=True)
+    if train_flag == 1 and test_flag == 0:
+        # model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=1).to(device)
+        model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(device)
 
-    # To save loss for each epoch
-    losses = []
+        criterion = nn.MSELoss()
+        learning_rate = 0.0002382091521841793
+        weight_decay = 0.06454389413796091
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
-    # 在训练循环外定义一个变量来存储使用模型预测的概率
-    sampling_prob = 0.0  # 初始时完全依赖于真实数据
+        # Add learning rate scheduler
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5, verbose=True)
 
-    # Train the model
-    epochs = 20
-    for epoch in range(epochs):
-        model.train()
-        epoch_losses = []
-        for batch_X, batch_y in train_loader:
-            # print(batch_X.shape, batch_y.shape)
-            # 使用模型预测作为输入的概率
-            use_model_pred = torch.bernoulli(torch.tensor([sampling_prob])).bool().item()
+        # To save loss for each epoch
+        losses = []
 
-            if use_model_pred:
-                # 初始化序列
-                sequence = batch_X.clone().to(device)
+        # 在训练循环外定义一个变量来存储使用模型预测的概率
+        sampling_prob = 0.0  # 初始时完全依赖于真实数据
 
-                # 存储模型的预测
-                y_pred = []
+        # Train the model
+        epochs = 50
+        for epoch in range(epochs):
+            model.train()
+            epoch_losses = []
+            for batch_X, batch_y in train_loader:
+                # print(batch_X.shape, batch_y.shape)
+                # 使用模型预测作为输入的概率
+                use_model_pred = torch.bernoulli(torch.tensor([sampling_prob])).bool().item()
 
-                for i in range(sequence.size(2)):  # 遍历特征维度
-                    # 使用当前序列获取模型的预测
-                    pred = model(sequence).squeeze()
+                if use_model_pred:
+                    # 初始化序列
+                    sequence = batch_X.clone().to(device)
 
-                    # 存储预测
-                    y_pred.append(pred)
+                    # 存储模型的预测
+                    y_pred = []
 
-                    # 更新序列
-                    if i + 1 < sequence.size(2):
-                        sequence[:, :, i + 1] = pred.unsqueeze(-1)
+                    for i in range(sequence.size(2)):  # 遍历特征维度
+                        # 使用当前序列获取模型的预测
+                        pred = model(sequence).squeeze()
 
-                # 将预测列表转换为张量
-                y_pred = y_pred[-1].squeeze(-1)
+                        # 存储预测
+                        y_pred.append(pred)
 
-                # 计算损失
-                loss = criterion(y_pred, batch_y)
+                        # 更新序列
+                        if i + 1 < sequence.size(2):
+                            sequence[:, :, i + 1] = pred.unsqueeze(-1)
 
-                # 反向传播和优化
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+                    # 将预测列表转换为张量
+                    y_pred = y_pred[-1].squeeze(-1)
 
-                # 存储本批次的平均损失
-                epoch_losses.append(loss.item())
-            else:
-                optimizer.zero_grad()
-                y_pred = model(batch_X).squeeze()
-                # print(y_pred.shape, batch_y.shape)
-                loss = criterion(y_pred, batch_y)
-                loss.backward()
-                # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5)
-                optimizer.step()
-                epoch_losses.append(loss.item())
-        avg_loss = np.mean(epoch_losses)
-        losses.append(avg_loss)
-        print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss}")
-        # 在每个epoch后增加使用模型预测的概率
-        sampling_prob = min(sampling_prob + 0.01, 1.0)  # 增加概率，但不超过1.0
-        # Update the learning rate
-        scheduler.step(avg_loss)
+                    # 计算损失
+                    loss = criterion(y_pred, batch_y)
 
-    torch.save(model.state_dict(), './model/model_checkpoint_epoch20_lags100.pth')
+                    # 反向传播和优化
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
 
-    model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(
-        device)
-    # model.load_state_dict(torch.load('./model_checkpoint_epoch20_lags100.pth')) # 如果模型没在内存加载模型
+                    # 存储本批次的平均损失
+                    epoch_losses.append(loss.item())
+                else:
+                    optimizer.zero_grad()
+                    y_pred = model(batch_X).squeeze()
+                    # print(y_pred.shape, batch_y.shape)
+                    loss = criterion(y_pred, batch_y)
+                    loss.backward()
+                    # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5)
+                    optimizer.step()
+                    epoch_losses.append(loss.item())
+            avg_loss = np.mean(epoch_losses)
+            losses.append(avg_loss)
+            print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss}")
+            # 在每个epoch后增加使用模型预测的概率
+            sampling_prob = min(sampling_prob + 0.01, 1.0)  # 增加概率，但不超过1.0
+            # Update the learning rate
+            scheduler.step(avg_loss)
 
-    # # Make predictions
-    # model.eval()
-    # with torch.no_grad():
-    #     predictions = model(X_test)
-    # # Transfer predictions from GPU to CPU
-    # predictions = predictions.cpu().numpy()
-    # # print(predictions)
-    # y_test_np = y_test.cpu().numpy()
-    #
-    # print("Predictions Min:", predictions.min())
-    # print("Predictions Max:", predictions.max())
-    # print("Actual Values Min:", y_test_np.min())
-    # print("Actual Values Max:", y_test_np.max())
+        # 保存模型
+        model_save_path = './model/'
+        model_filename = 'model_checkpoint_epoch20_lags100.pth'
 
-    # Make predictions using the model's own previous predictions
-    model.eval()
-    with torch.no_grad():
-        # Initialize the sequence with history data
-        sequence = X_test.clone().to(device)
+        # 检查是否存在保存模型的目录，如果不存在则创建
+        if not os.path.exists(model_save_path):
+            os.makedirs(model_save_path)
 
-        # To store model's predictions
-        predictions = []
+        # 保存模型
+        torch.save(model.state_dict(), os.path.join(model_save_path, model_filename))
+        print(f"Model saved to {os.path.join(model_save_path, model_filename)}")
 
-        for i in range(X_test.size(0)):
-            # For each sample in the test set, we iterate over its features
-            sample_seq = sequence[i:i + 1]
+        # 在训练循环结束后保存损失值
+        loss_directory = 'loss'
+        if not os.path.exists(loss_directory):
+            os.makedirs(loss_directory)
 
-            for j in range(X_test.size(2) - 1):  # iterating over feature dimension except the last one
-                # Get the model's prediction for the current sequence
-                pred = model(sample_seq[:, :, :j + 1]).squeeze()
+        with open(os.path.join(loss_directory, 'loss_values.json'), 'w') as f:
+            json.dump(losses, f)
 
-                # Update the sequence with the model's prediction
-                sample_seq[:, :, j + 1] = pred.unsqueeze(-1)
+        model.eval()
+        with torch.no_grad():
+            # Initialize the sequence with history data
+            sequence = X_test.clone().to(device)
 
-            # After iterating over all features, get the final prediction
-            final_pred = model(sample_seq).squeeze()
+            # To store model's predictions
+            predictions = []
 
-            # Store the final prediction
-            predictions.append(final_pred.cpu().numpy())
+            for i in range(X_test.size(0)):
+                # For each sample in the test set, we iterate over its features
+                sample_seq = sequence[i:i + 1]
 
-        # Convert the list of predictions to a numpy array
-        predictions = np.array(predictions)
+                for j in range(X_test.size(2) - 1):  # iterating over feature dimension except the last one
+                    # Get the model's prediction for the current sequence
+                    pred = model(sample_seq[:, :, :j + 1]).squeeze()
 
-    # Now, 'predictions' contains the model's predictions for the entire test set
-    print("Predictions Min:", predictions.min())
-    print("Predictions Max:", predictions.max())
-    y_test_np = y_test.cpu().numpy()
-    print("Actual Values Min:", y_test_np.min())
-    print("Actual Values Max:", y_test_np.max())
+                    # Update the sequence with the model's prediction
+                    sample_seq[:, :, j + 1] = pred.unsqueeze(-1)
 
+                # After iterating over all features, get the final prediction
+                final_pred = model(sample_seq).squeeze()
+
+                # Store the final prediction
+                predictions.append(final_pred.cpu().numpy())
+
+            # Convert the list of predictions to a numpy array
+            predictions = np.array(predictions)
+
+        # Now, 'predictions' contains the model's predictions for the entire test set
+        print("Predictions Min:", predictions.min())
+        print("Predictions Max:", predictions.max())
+        y_test_np = y_test.cpu().numpy()
+        print("Actual Values Min:", y_test_np.min())
+        print("Actual Values Max:", y_test_np.max())
+
+    elif train_flag == 0 and test_flag == 1:
+        model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(
+            device)
+        # 加载保存的模型参数
+        model.load_state_dict(torch.load('./model/model_checkpoint_epoch20_lags100.pth'))
+
+        # model.load_state_dict(torch.load('./model_checkpoint_epoch20_lags100.pth')) # 如果模型没在内存加载模型
+
+        # # Make predictions
+        # model.eval()
+        # with torch.no_grad():
+        #     predictions = model(X_test)
+        # # Transfer predictions from GPU to CPU
+        # predictions = predictions.cpu().numpy()
+        # # print(predictions)
+        # y_test_np = y_test.cpu().numpy()
+        #
+        # print("Predictions Min:", predictions.min())
+        # print("Predictions Max:", predictions.max())
+        # print("Actual Values Min:", y_test_np.min())
+        # print("Actual Values Max:", y_test_np.max())
+
+        # Make predictions using the model's own previous predictions
+        model.eval()
+        with torch.no_grad():
+            # Initialize the sequence with history data
+            sequence = X_test.clone().to(device)
+
+            # To store model's predictions
+            predictions = []
+
+            for i in range(X_test.size(0)):
+                # For each sample in the test set, we iterate over its features
+                sample_seq = sequence[i:i + 1]
+
+                for j in range(X_test.size(2) - 1):  # iterating over feature dimension except the last one
+                    # Get the model's prediction for the current sequence
+                    pred = model(sample_seq[:, :, :j + 1]).squeeze()
+
+                    # Update the sequence with the model's prediction
+                    sample_seq[:, :, j + 1] = pred.unsqueeze(-1)
+
+                # After iterating over all features, get the final prediction
+                final_pred = model(sample_seq).squeeze()
+
+                # Store the final prediction
+                predictions.append(final_pred.cpu().numpy())
+
+            # Convert the list of predictions to a numpy array
+            predictions = np.array(predictions)
+
+        # Now, 'predictions' contains the model's predictions for the entire test set
+        print("Predictions Min:", predictions.min())
+        print("Predictions Max:", predictions.max())
+        y_test_np = y_test.cpu().numpy()
+        print("Actual Values Min:", y_test_np.min())
+        print("Actual Values Max:", y_test_np.max())
+    else:
+        print("Invalid combination of train_flag and test_flag.")
     # # Plot convergence graph and predictions
     # plt.figure(figsize=(15, 5))
     #
@@ -284,6 +349,21 @@ if __name__ == '__main__':
     # Plot convergence graph and predictions
     plt.figure(figsize=(15, 10))
 
+    # 读取损失值
+    loss_directory = 'loss'
+    loss_filename = 'loss_values.json'
+    loss_file_path = os.path.join(loss_directory, loss_filename)
+
+    if os.path.exists(loss_file_path):
+        with open(loss_file_path, 'r') as f:
+            losses = json.load(f)
+    else:
+        losses = None
+        print("Loss values file not found. Convergence graph will not be plotted.")
+
+    # 在这里，确保 y_test_np 是一个 NumPy array
+    y_test_np = y_test_np.values if isinstance(y_test_np, pd.DataFrame) else y_test_np
+
     # Plot actual values vs predictions for each output
     for i in range(4):
         plt.subplot(2, 3, i + 1)
@@ -301,18 +381,18 @@ if __name__ == '__main__':
         plt.ylim(min_value, max_value)
 
     # Plot the convergence graph
-    plt.subplot(2, 3, 6)
-    plt.plot(losses, label="Training Loss", color="blue")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title("Convergence Graph")
-    plt.legend()
+    if losses is not None:
+        plt.subplot(2, 3, 6)
+        plt.plot(losses, label="Training Loss", color="blue")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.title("Convergence Graph")
+        plt.legend()
 
     plt.tight_layout()
-    plt.show()
-
-    import os
 
     if not os.path.exists('./pic'):
         os.makedirs('./pic')
     plt.savefig('./pic/model_output_epoch20_lags100.png')
+
+    plt.show()
