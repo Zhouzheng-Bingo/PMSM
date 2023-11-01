@@ -225,7 +225,7 @@ if __name__ == '__main__':
     plt.figure(figsize=(15, 5))
 
     # Plot the convergence graph
-    plt.subplot(1, 3, 1)
+    plt.subplot(1, 2, 1)
     plt.plot(losses, label="Training Loss")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
@@ -233,18 +233,9 @@ if __name__ == '__main__':
     plt.legend()
 
     # Plot predictions vs. actual values
-    plt.subplot(1, 3, 2)
+    plt.subplot(1, 2, 2)
     plt.plot(predictions, label="Predictions", color="red")
     # plt.plot(y_test_np, label="Actual Values", color="blue")
-    plt.xlabel("Samples")
-    plt.ylabel("Values")
-    plt.title("Predictions vs Actual Values")
-    plt.legend()
-
-    # Plot predictions vs. actual values
-    plt.subplot(1, 3, 3)
-    # plt.plot(predictions, label="Predictions", color="red")
-    plt.plot(y_test_np, label="Actual Values", color="blue")
     plt.xlabel("Samples")
     plt.ylabel("Values")
     plt.title("Predictions vs Actual Values")

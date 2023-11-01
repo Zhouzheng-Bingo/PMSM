@@ -107,7 +107,7 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(torch.cuda.is_available())
     # X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data("./data/电机转动角度(弧度).csv")
-    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_multi_output("./data/多数据源位置预测_all.csv", lags=100)
+    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_multi_output("./data/多数据源位置预测_all.csv", lags=50)
     # print(X_train_np.shape, X_test_np.shape, y_train_np.shape, y_test_np.shape)
     # Convert data to torch.Tensor and adjust shape to fit LSTM
     X_train = torch.tensor(X_train_np, dtype=torch.float32).to(device).view(-1, X_train_np.shape[1], 1) # (batch_size, seq_len, input_dim)
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     train_dataset = TensorDataset(X_train, y_train)
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     # Initialize the model with more residual blocks
-    num_residual_blocks = 22  # for example, to have 22 residual blocks
+    num_residual_blocks = 20  # for example, to have 22 residual blocks
     train_flag = 1  # 训练并评估：train_flag = 1&test_flag = 0
     test_flag = 0  # 测试：train_flag = 0&test_flag = 1
 
@@ -144,7 +144,7 @@ if __name__ == '__main__':
         sampling_prob = 0.0  # 初始时完全依赖于真实数据
 
         # Train the model
-        epochs = 50
+        epochs = 10
         for epoch in range(epochs):
             model.train()
             epoch_losses = []
@@ -203,7 +203,7 @@ if __name__ == '__main__':
 
         # 保存模型
         model_save_path = './model/'
-        model_filename = 'model_checkpoint_epoch20_lags100.pth'
+        model_filename = 'model_checkpoint_epoch10_lags50_block20.pth'
 
         # 检查是否存在保存模型的目录，如果不存在则创建
         if not os.path.exists(model_save_path):
@@ -260,9 +260,9 @@ if __name__ == '__main__':
         model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(
             device)
         # 加载保存的模型参数
-        model.load_state_dict(torch.load('./model/model_checkpoint_epoch20_lags100.pth'))
+        model.load_state_dict(torch.load('./model/model_checkpoint_epoch20_lags50_block22.pth'))
 
-        # model.load_state_dict(torch.load('./model_checkpoint_epoch20_lags100.pth')) # 如果模型没在内存加载模型
+        # model.load_state_dict(torch.load('./model/model_checkpoint_epoch20_lags50_block22.pth')) # 如果模型没在内存加载模型
 
         # # Make predictions
         # model.eval()
@@ -393,6 +393,6 @@ if __name__ == '__main__':
 
     if not os.path.exists('./pic'):
         os.makedirs('./pic')
-    plt.savefig('./pic/model_output_epoch20_lags100.png')
+    plt.savefig('./pic/model_output_epoch10_lags50_block20.png')
 
     plt.show()
