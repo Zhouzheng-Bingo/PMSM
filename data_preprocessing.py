@@ -184,3 +184,53 @@ def load_and_preprocess_data_multi_output(file_path, lags=5):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 
     return X_train, X_test, y_train, y_test
+
+
+def load_and_preprocess_data_multi_output_default_lags(file_path):
+    data = pd.read_csv(file_path)
+    relevant_columns = ['time', 'id_command', 'iq_command', 'motor_speed_command',
+                        'rotation_angle_command', 'id_feedback', 'iq_feedback',
+                        'motor_speed_feedback', 'rotation_angle_feedback']
+    data = data[relevant_columns]
+
+    # 数据集划分
+    train_data, test_data = train_test_split(data, test_size=0.2, shuffle=False)
+
+    # 使用不等间隔的滞后值
+    near_lags = list(range(1, 101)) + [150, 200, 250, 300, 400, 500]
+    far_lags = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000]
+    lags = near_lags + far_lags
+
+    # 在训练集上计算滞后特征并删除含有空值的数据点
+    for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']:
+        for lag in lags:
+            train_data[f'{col}_lag_{lag}'] = train_data[col].shift(lag)
+
+    train_data.dropna(inplace=True)
+
+    # 在测试集上使用训练集的最后一部分数据来计算滞后特征
+    for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']:
+        for lag in lags:
+            test_data[f'{col}_lag_{lag}'] = test_data[col].combine_first(
+                train_data[col].iloc[-lag:].reset_index(drop=True))
+
+    feature_cols = ['time', 'id_command', 'iq_command', 'motor_speed_command', 'rotation_angle_command'] + [
+        f'{col}_lag_{lag}' for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']
+        for lag in lags]
+    output_cols = ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']
+
+    X_train = train_data[feature_cols]
+    y_train = train_data[output_cols]
+    X_test = test_data[feature_cols]
+    y_test = test_data[output_cols]
+
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    return X_train, X_test, y_train, y_test
+
+
+if __name__ == '__main__':
+    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_multi_output_default_lags(
+        "./data/多数据源位置预测_all.csv")
