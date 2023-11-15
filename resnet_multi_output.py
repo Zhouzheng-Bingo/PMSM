@@ -5,7 +5,7 @@ import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import TensorDataset, DataLoader
-from data_preprocessing import load_and_preprocess_data_multi_output_default_lags
+from data_preprocessing import load_and_preprocess_data_multi_output
 import os
 import json
 
@@ -107,8 +107,8 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(torch.cuda.is_available())
     # X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data("./data/电机转动角度(弧度).csv")
-    # X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_multi_output("./data/多数据源位置预测_all.csv", lags=50)
-    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_multi_output_default_lags("./data/多数据源位置预测_all.csv")
+    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_multi_output("./data/多数据源位置预测_all.csv")
+    # X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_multi_output_default_lags("./data/多数据源位置预测_all.csv")
     # print(X_train_np.shape, X_test_np.shape, y_train_np.shape, y_test_np.shape)
     # Convert data to torch.Tensor and adjust shape to fit LSTM
     X_train = torch.tensor(X_train_np, dtype=torch.float32).to(device).view(-1, X_train_np.shape[1], 1) # (batch_size, seq_len, input_dim)
@@ -131,8 +131,11 @@ if __name__ == '__main__':
         model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(device)
 
         criterion = nn.MSELoss()
-        learning_rate = 0.000864293053363452
-        weight_decay = 0.02915625436117011
+        # learning_rate = 0.000864293053363452
+        # weight_decay = 0.02915625436117011
+        learning_rate = 0.0002382091521841793
+        weight_decay = 0.06454389416796091
+
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
         # Add learning rate scheduler
@@ -145,7 +148,7 @@ if __name__ == '__main__':
         sampling_prob = 0.0  # 初始时完全依赖于真实数据
 
         # Train the model
-        epochs = 20
+        epochs = 2
         for epoch in range(epochs):
             model.train()
             epoch_losses = []
@@ -204,7 +207,7 @@ if __name__ == '__main__':
 
         # 保存模型
         model_save_path = './model/'
-        model_filename = 'model_checkpoint_epoch20_lagsEx456_block22.pth'
+        model_filename = 'model_checkpoint_epoch2_lagsEx5_block22.pth'
 
         # 检查是否存在保存模型的目录，如果不存在则创建
         if not os.path.exists(model_save_path):
@@ -261,7 +264,7 @@ if __name__ == '__main__':
         model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(
             device)
         # 加载保存的模型参数
-        model.load_state_dict(torch.load('./model/model_checkpoint_epoch20_lagsEx456_block22.pth'))
+        model.load_state_dict(torch.load('./model/model_checkpoint_epoch2_lagsEx5_block22.pth'))
 
         # model.load_state_dict(torch.load('./model/model_checkpoint_epoch20_lags50_block22.pth')) # 如果模型没在内存加载模型
 
@@ -394,6 +397,6 @@ if __name__ == '__main__':
 
     if not os.path.exists('./pic'):
         os.makedirs('./pic')
-    plt.savefig('./pic/model_checkpoint_epoch20_lagsEx456_block22.png')
+    plt.savefig('./pic/model_checkpoint_epoch2_lagsEx5_block22.png')
 
     plt.show()

@@ -3,282 +3,121 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 
-def load_and_preprocess_data(file_path, lags=5):
-    data = pd.read_csv(file_path, encoding='gbk')
-    print(data.columns)
-    # 创建滞后变量
-    for i in range(1, lags + 1):
-        # data[f'指令_lag_{i}'] = data['指令'].shift(i)
-        data[f'实际_lag_{i}'] = data['实际'].shift(i)
-    data.dropna(inplace=True)
-
-    # 分割数据
-    # features = ['指令'] + [f'指令_lag_{i}' for i in range(1, lags + 1)] + [f'实际_lag_{i}' for i in range(1, lags + 1)]
-    features = ['指令'] + [f'实际_lag_{i}' for i in range(1, lags + 1)]
-    X = data[features]
-    y = data['实际']
-    # print(X.shape, y.shape)
-    # 数据归一化
-    scaler = StandardScaler()
-    X = scaler.fit_transform(X)
-
-    # 数据集划分
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-
-    return X_train, X_test, y_train, y_test
+def create_lag_features(data, feature_columns, lags):
+    return pd.concat(
+        {f"{col}_lag_{lag}": data[col].shift(lag) for lag in lags for col in feature_columns},
+        axis=1
+    )
 
 
-# id_iq数据预处理部分
-def load_and_preprocess_data_id(file_path, lags=5):
-    data = pd.read_csv(file_path)
-
-    # 选择相关的列
-    relevant_columns = ['time', 'id_command', 'iq_command', 'id_feedback']
-    data = data[relevant_columns]
-
-    # 创建反馈值的滞后变量
-    lag_data = pd.concat([data[col].shift(i) for i in range(1, lags + 1) for col in ['id_feedback']], axis=1)
-    lag_columns = [f'{col}_lag_{i}' for i in range(1, lags + 1) for col in ['id_feedback']]
-    lag_data.columns = lag_columns
-    data = pd.concat([data, lag_data], axis=1)
-
-    # 去掉含有NA的行
-    data.dropna(inplace=True)
-
-    # 数据归一化
-    feature_cols = ['time', 'id_command', 'iq_command'] + [f'id_feedback_lag_{i}' for i in range(1, lags + 1)]
-    output_cols = 'id_feedback'
-
-    X = data[feature_cols]
-    y = data[output_cols]
-    # print(X.shape, y.shape)
-    scaler = StandardScaler()
-    X = scaler.fit_transform(X)
-
-    # 数据集划分
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-
-    return X_train, X_test, y_train, y_test
+def ensure_column_names_are_strings(df):
+    df.columns = df.columns.map(lambda x: '_'.join(tuple(map(str, x))) if isinstance(x, tuple) else str(x))
+    return df
 
 
-# id_iq数据预处理部分
-def load_and_preprocess_data_iq(file_path, lags=5):
-    data = pd.read_csv(file_path)
-
-    # 选择相关的列
-    relevant_columns = ['time', 'id_command', 'iq_command', 'iq_feedback']
-    data = data[relevant_columns]
-
-    # 创建反馈值的滞后变量
-    lag_data = pd.concat([data[col].shift(i) for i in range(1, lags + 1) for col in ['iq_feedback']], axis=1)
-    lag_columns = [f'{col}_lag_{i}' for i in range(1, lags + 1) for col in ['iq_feedback']]
-    lag_data.columns = lag_columns
-    data = pd.concat([data, lag_data], axis=1)
-
-    # 去掉含有NA的行
-    data.dropna(inplace=True)
-
-    # 数据归一化
-    feature_cols = ['time', 'id_command', 'iq_command'] + [f'iq_feedback_lag_{i}' for i in range(1, lags + 1)]
-    output_cols = 'iq_feedback'
-
-    X = data[feature_cols]
-    y = data[output_cols]
-    # print(X.shape, y.shape)
-    scaler = StandardScaler()
-    X = scaler.fit_transform(X)
-
-    # 数据集划分
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-
-    return X_train, X_test, y_train, y_test
+def compute_windowed_features(data, feedback_columns, window_starts, window_size, sampling_rate):
+    windowed_features = []
+    for start in window_starts:
+        end = start + window_size
+        window_data = data.loc[start:end, feedback_columns]
+        features = window_data.agg(['mean', 'std', 'min', 'max']).unstack()
+        windowed_features.append(features)
+    return pd.DataFrame(windowed_features)
 
 
-def load_and_preprocess_data_angle(file_path, lags=5):
+# 这是降采样函数
+def downsample_data(data, downsample_rate):
     """
-        这里的25是因为我们有1个 time 特征,
-        1个rotation_angle_command特征,1个id_command，1个iq_command和1个motor_speed_command
-        每个滞后变量5个，共4个这样的变量组
+    Downsample the dataset by a specified rate.
+
+    :param data: Original DataFrame.
+    :param downsample_rate: A float representing the fraction of the data to keep.
+    :return: Downsampled DataFrame.
     """
+    if downsample_rate <= 0 or downsample_rate > 1:
+        raise ValueError("Downsample rate must be between 0 and 1.")
 
+    downsampled_data = data.sample(frac=downsample_rate, random_state=1)
+    return downsampled_data.reset_index(drop=True)
+
+
+def load_and_preprocess_data_multi_output(file_path, window_size=0.2, sampling_rate=1e6, lags=[1, 2, 3, 4, 5],
+                                          downsample_rate=0.1):
     data = pd.read_csv(file_path)
+    print(f"Original data shape: {data.shape}")
 
-    # 选择相关的列
-    relevant_columns = ['time', 'id_feedback', 'iq_feedback', 'motor_speed_feedback',
-                        'rotation_angle_command', 'rotation_angle_feedback',
-                        'id_command', 'iq_command', 'motor_speed_command']
-    data = data[relevant_columns]
+    # 如果指定了降采样率，则进行降采样
+    if downsample_rate < 1.0:
+        print(f"Original data shape: {data.shape}")
+        data = downsample_data(data, downsample_rate)
+        print(f"Downsampled data shape: {data.shape}")
 
-    # 创建滞后变量
-    for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']:
-        for i in range(1, lags + 1):
-            data[f'{col}_lag_{i}'] = data[col].shift(i)
+    # Command and feedback columns
+    command_columns = ['id_command', 'iq_command', 'motor_speed_command', 'rotation_angle_command']
+    feedback_columns = ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']
 
-    # 去掉含有NA的行
-    data.dropna(inplace=True)
+    # Identify points where the command changes
+    command_change_points = data[command_columns].diff().abs().sum(axis=1).ne(0)
+    print(f"Number of command change points: {command_change_points.sum()}")
 
-    # 数据归一化
-    feature_cols = ['time', 'rotation_angle_command', 'id_command', 'iq_command', 'motor_speed_command'] + \
-                   [f'{col}_lag_{i}' for col in
-                    ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback'] for i in
-                    range(1, lags + 1)]
-    output_cols = 'rotation_angle_feedback'
+    # 这里我们计算窗口的开始位置，确保没有负数索引。
+    # 由于降采样，我们可能需要调整窗口大小或开始点的计算。
+    half_window_samples = int(window_size * sampling_rate / 2)
+    window_starts = command_change_points[command_change_points].index
 
-    X = data[feature_cols]
-    y = data[output_cols]
+    # 如果需要，调整窗口大小
+    adjusted_window_size = int(window_size * sampling_rate / 2 * downsample_rate)
+
+    # 确保没有负数索引
+    window_starts = window_starts[window_starts >= adjusted_window_size] - adjusted_window_size
+    print(f"Number of window starts after adjustment: {len(window_starts)}")
+
+    # Compute windowed features
+    windowed_features_df = compute_windowed_features(data, feedback_columns, window_starts,
+                                                     int(window_size * sampling_rate), sampling_rate)
+    print(f"Windowed features shape: {windowed_features_df.shape}")
+
+    # Compute differential features
+    differential_features = data[feedback_columns].diff().fillna(0)
+    print(f"Differential features shape: {differential_features.shape}")
+
+    # Create lag features
+    lag_features = create_lag_features(data, feedback_columns, lags)
+    print(f"Lag features shape: {lag_features.shape}")
+
+    # Concatenate all features
+    all_features = pd.concat([windowed_features_df, differential_features, lag_features], axis=1)
+    all_features = ensure_column_names_are_strings(all_features)
+    print(f"All features shape (before dropping NA): {all_features.shape}")
+
+    # Drop rows with NaN values which may be introduced by shifting operations
+    all_features.dropna(inplace=True)
+    print(f"All features shape (after dropping NA): {all_features.shape}")
+
+    # Scale all features
     scaler = StandardScaler()
-    X = scaler.fit_transform(X)
+    all_features_scaled = scaler.fit_transform(all_features)
 
-    # 数据集划分
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
+    # Align targets to the same index as windowed features
+    aligned_targets = data.loc[windowed_features_df.index, feedback_columns]
+    print(f"Aligned targets shape: {aligned_targets.shape}")
 
-    return X_train, X_test, y_train, y_test
+    aligned_targets = aligned_targets.loc[all_features.index]
 
+    # Split the data into training and test sets
+    X_train, X_test, y_train, y_test = train_test_split(all_features_scaled, aligned_targets, test_size=0.2,
+                                                        shuffle=False)
 
-def load_and_preprocess_data_multi_output(file_path, lags=5):
-    """
-        这里的25是因为我们有1个 time 特征,
-        1个rotation_angle_command特征,1个id_command，1个iq_command和1个motor_speed_command
-        每个滞后变量5个，共4个这样的变量组
-    """
-
-    data = pd.read_csv(file_path)
-
-    # 选择相关的列
-    relevant_columns = ['time', 'id_command', 'iq_command', 'motor_speed_command',
-                        'rotation_angle_command', 'id_feedback', 'iq_feedback',
-                        'motor_speed_feedback', 'rotation_angle_feedback']
-    data = data[relevant_columns]
-
-    # # 创建滞后变量(5个)
-    # for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']:
-    #     for i in range(1, lags + 1):
-    #         data[f'{col}_lag_{i}'] = data[col].shift(i)
-
-    # 创建滞后变量(100个)
-    lag_data = {}
-    for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']:
-        for i in range(1, lags + 1):
-            lag_data[f'{col}_lag_{i}'] = data[col].shift(i)
-
-    # 添加滞后变量到原始数据框
-    data = pd.concat([data, pd.DataFrame(lag_data)], axis=1)
-
-    # 以上创建完毕，下面开始处理数据
-    # 去掉含有NA的行
-    data.dropna(inplace=True)
-
-    # 数据归一化
-    feature_cols = ['time', 'id_command', 'iq_command', 'motor_speed_command', 'rotation_angle_command'] + \
-                   [f'{col}_lag_{i}' for col in
-                    ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback'] for i in
-                    range(1, lags + 1)]
-    output_cols = ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']
-
-    X = data[feature_cols]
-    y = data[output_cols]
-    scaler = StandardScaler()
-    X = scaler.fit_transform(X)
-
-    # 数据集划分
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-
-    return X_train, X_test, y_train, y_test
-
-
-# def load_and_preprocess_data_multi_output_default_lags(file_path):
-#     data = pd.read_csv(file_path)
-#     relevant_columns = ['time', 'id_command', 'iq_command', 'motor_speed_command',
-#                         'rotation_angle_command', 'id_feedback', 'iq_feedback',
-#                         'motor_speed_feedback', 'rotation_angle_feedback']
-#     data = data[relevant_columns]
-#
-#     # 数据集划分
-#     train_data, test_data = train_test_split(data, test_size=0.2, shuffle=False)
-#
-#     # 使用不等间隔的滞后值
-#     near_lags = list(range(1, 101)) + [150, 200, 250, 300, 400, 500]
-#     far_lags = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000]
-#     lags = near_lags + far_lags
-#
-#     # 在训练集上计算滞后特征并删除含有空值的数据点
-#     for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']:
-#         for lag in lags:
-#             train_data[f'{col}_lag_{lag}'] = train_data[col].shift(lag)
-#
-#     train_data.dropna(inplace=True)
-#
-#     # 在测试集上使用训练集的最后一部分数据来计算滞后特征
-#     for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']:
-#         for lag in lags:
-#             test_data[f'{col}_lag_{lag}'] = test_data[col].combine_first(
-#                 train_data[col].iloc[-lag:].reset_index(drop=True))
-#
-#     feature_cols = ['time', 'id_command', 'iq_command', 'motor_speed_command', 'rotation_angle_command'] + [
-#         f'{col}_lag_{lag}' for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']
-#         for lag in lags]
-#     output_cols = ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']
-#
-#     X_train = train_data[feature_cols]
-#     y_train = train_data[output_cols]
-#     X_test = test_data[feature_cols]
-#     y_test = test_data[output_cols]
-#
-#     scaler = StandardScaler()
-#     X_train = scaler.fit_transform(X_train)
-#     X_test = scaler.transform(X_test)
-#
-#     return X_train, X_test, y_train, y_test
-
-def load_and_preprocess_data_multi_output_default_lags(file_path):
-    data = pd.read_csv(file_path)
-    relevant_columns = ['time', 'id_command', 'iq_command', 'motor_speed_command',
-                        'rotation_angle_command', 'id_feedback', 'iq_feedback',
-                        'motor_speed_feedback', 'rotation_angle_feedback']
-    data = data[relevant_columns]
-
-    # 使用不等间隔的滞后值
-    near_lags = list(range(1, 101)) + [150, 200, 250, 300, 400, 500]
-    far_lags = [1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000]
-    lags = near_lags + far_lags
-
-    # 构建所有滞后特征
-    lag_data = {}
-    for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']:
-        for lag in lags:
-            lag_data[f'{col}_lag_{lag}'] = data[col].shift(lag)
-
-    # 将滞后特征加入原始数据
-    data = pd.concat([data, pd.DataFrame(lag_data)], axis=1)
-
-    # 删除含有空值的行
-    data.dropna(inplace=True)
-
-    # 数据集划分
-    train_data, test_data = train_test_split(data, test_size=0.2, shuffle=False)
-
-    # 测试集继承训练集的滞后特征
-    for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']:
-        for lag in lags:
-            test_data[f'{col}_lag_{lag}'] = train_data[f'{col}_lag_{lag}']
-
-    feature_cols = ['time', 'id_command', 'iq_command', 'motor_speed_command', 'rotation_angle_command'] + [
-        f'{col}_lag_{lag}' for col in ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']
-        for lag in lags]
-    output_cols = ['id_feedback', 'iq_feedback', 'motor_speed_feedback', 'rotation_angle_feedback']
-
-    X_train = train_data[feature_cols]
-    y_train = train_data[output_cols]
-    X_test = test_data[feature_cols]
-    y_test = test_data[output_cols]
-
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
+    # Print shapes of the resulting splits
+    print(f"X_train shape: {X_train.shape}")
+    print(f"X_test shape: {X_test.shape}")
+    print(f"y_train shape: {y_train.shape}")
+    print(f"y_test shape: {y_test.shape}")
 
     return X_train, X_test, y_train, y_test
 
 
 if __name__ == '__main__':
-    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_multi_output_default_lags(
-        "./data/多数据源位置预测_all.csv")
+    # Call the modified function with the subset data file path
+    # We are using a subset of the data for this execution, assuming it mirrors the full dataset's structure
+    load_and_preprocess_data_multi_output('./data/多数据源位置预测_all_subset.csv')
