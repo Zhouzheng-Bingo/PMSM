@@ -148,7 +148,7 @@ if __name__ == '__main__':
         sampling_prob = 0.0  # 初始时完全依赖于真实数据
 
         # Train the model
-        epochs = 2
+        epochs = 20
         for epoch in range(epochs):
             model.train()
             epoch_losses = []
