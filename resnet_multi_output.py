@@ -10,32 +10,6 @@ import os
 import json
 
 
-# Residual Block Definition
-class ResidualBlock(nn.Module):
-    def __init__(self, dim, kernel_size=3, padding=1):
-        super(ResidualBlock, self).__init__()
-        self.conv1 = nn.Conv1d(dim, dim, kernel_size, padding=padding)
-        self.conv2 = nn.Conv1d(dim, dim, kernel_size, padding=padding)
-        self.relu = nn.ReLU()
-        # self.bn1 = nn.BatchNorm1d(dim)
-        # self.bn2 = nn.BatchNorm1d(dim)
-
-    # def forward(self, x):
-    #     residual = x
-    #     out = self.relu(self.bn1(self.conv1(x)))
-    #     out = self.bn2(self.conv2(out))
-    #     out += residual
-    #     out = self.relu(out)
-    #     return out
-    def forward(self, x):
-        residual = x
-        out = self.relu(self.conv1(x))
-        out = self.conv2(out)
-        out += residual
-        out = self.relu(out)
-        return out
-
-
 class Res2NetBlock(nn.Module):
     def __init__(self, dim, num_splits=4, kernel_size=3, padding=1):
         super(Res2NetBlock, self).__init__()
@@ -117,8 +91,8 @@ if __name__ == '__main__':
     # y_test = torch.tensor(y_test_np.values, dtype=torch.float32).to(device).view(-1, 1)
     y_train = torch.tensor(y_train_np.values, dtype=torch.float32).to(device)
     y_test = torch.tensor(y_test_np.values, dtype=torch.float32).to(device)
-    # print(y_train.shape, y_test.shape)
-    # print(X_train.shape, y_train.shape, X_test.shape, y_test.shape)
+    print(y_train.shape, y_test.shape)
+    print(X_train.shape, y_train.shape, X_test.shape, y_test.shape)
     train_dataset = TensorDataset(X_train, y_train)
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     # Initialize the model with more residual blocks
@@ -133,7 +107,8 @@ if __name__ == '__main__':
         criterion = nn.MSELoss()
         # learning_rate = 0.000864293053363452
         # weight_decay = 0.02915625436117011
-        learning_rate = 0.0002382091521841793
+        # learning_rate = 0.0002382091521841793
+        learning_rate = 0.0000001
         weight_decay = 0.06454389416796091
 
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -184,13 +159,16 @@ if __name__ == '__main__':
                     # 反向传播和优化
                     optimizer.zero_grad()
                     loss.backward()
+
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
                     optimizer.step()
 
                     # 存储本批次的平均损失
                     epoch_losses.append(loss.item())
                 else:
                     optimizer.zero_grad()
-                    y_pred = model(batch_X).squeeze()
+                    # y_pred = model(batch_X).squeeze()
+                    y_pred = model(batch_X) # 新做的特征工程，形状和原来不一致，去掉了squeeze()
                     # print(y_pred.shape, batch_y.shape)
                     loss = criterion(y_pred, batch_y)
                     loss.backward()
@@ -319,38 +297,7 @@ if __name__ == '__main__':
         print("Actual Values Max:", y_test_np.max())
     else:
         print("Invalid combination of train_flag and test_flag.")
-    # # Plot convergence graph and predictions
-    # plt.figure(figsize=(15, 5))
-    #
-    # # Plot the convergence graph
-    # plt.subplot(1, 2, 1)
-    # plt.plot(losses, label="Training Loss")
-    # plt.xlabel("Epoch")
-    # plt.ylabel("Loss")
-    # plt.title("Convergence Graph")
-    # plt.legend()
-    #
-    # # Plot predictions vs. actual values
-    # plt.subplot(1, 2, 2)
-    # plt.plot(predictions, label="Predictions", color="red")
-    # # plt.plot(y_test_np, label="Actual Values", color="blue")
-    # plt.xlabel("Samples")
-    # plt.ylabel("Values")
-    # plt.title("Predictions vs Actual Values")
-    # plt.legend()
-    #
-    # # 计算预测值和实际值的最小值和最大值
-    # min_value = min(predictions.min(), y_test_np.min())
-    # max_value = max(predictions.max(), y_test_np.max())
-    # # 打印最小值和最大值
-    # print("Min value:", min_value)
-    # print("Max value:", max_value)
-    # plt.ylim(min_value, max_value)
-    #
-    # plt.tight_layout()
-    # plt.show()
 
-    # Plot convergence graph and predictions
     plt.figure(figsize=(15, 10))
 
     # 读取损失值
