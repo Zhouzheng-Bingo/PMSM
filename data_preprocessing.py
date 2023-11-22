@@ -89,7 +89,7 @@ def load_and_preprocess_data_multi_output(file_path, window_size=0.2, sampling_r
 
 
 if __name__ == '__main__':
-    X_train_scaled, X_test_scaled, y_train, y_test = load_and_preprocess_data_multi_output('./data/多数据源位置预测_all.csv')
+    X_train_scaled, X_test_scaled, y_train, y_test = load_and_preprocess_data_multi_output('./data/多数据源位置预测_all_subset.csv')
 
     # 转换为DataFrame以便于分析
     X_train_scaled_df = pd.DataFrame(X_train_scaled)
