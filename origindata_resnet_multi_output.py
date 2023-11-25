@@ -9,6 +9,8 @@ from data_preprocessing import load_and_preprocess_data_multi_output
 import os
 import json
 
+from origindata_preprocessing import load_and_preprocess_data
+
 
 class Res2NetBlock(nn.Module):
     def __init__(self, dim, num_splits=4, kernel_size=3, padding=1):
@@ -81,16 +83,15 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(torch.cuda.is_available())
     # X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data("./data/电机转动角度(弧度).csv")
-    X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_multi_output("./data/多数据源位置预测_all.csv")
-    # X_train_np, X_test_np, y_train_np, y_test_np = load_and_preprocess_data_multi_output_default_lags("./data/多数据源位置预测_all.csv")
+    X_train, X_test, y_train, y_test = load_and_preprocess_data('./data/多数据源位置预测_all.csv')
     # print(X_train_np.shape, X_test_np.shape, y_train_np.shape, y_test_np.shape)
     # Convert data to torch.Tensor and adjust shape to fit LSTM
-    X_train = torch.tensor(X_train_np, dtype=torch.float32).to(device).view(-1, X_train_np.shape[1], 1) # (batch_size, seq_len, input_dim)
-    X_test = torch.tensor(X_test_np, dtype=torch.float32).to(device).view(-1, X_test_np.shape[1], 1)
+    X_train = torch.tensor(X_train.values, dtype=torch.float32).to(device).view(-1, X_train.shape[1], 1) # (batch_size, seq_len, input_dim)
+    X_test = torch.tensor(X_test.values, dtype=torch.float32).to(device).view(-1, X_test.shape[1], 1)
     # y_train = torch.tensor(y_train_np.values, dtype=torch.float32).to(device).view(-1, 1)
     # y_test = torch.tensor(y_test_np.values, dtype=torch.float32).to(device).view(-1, 1)
-    y_train = torch.tensor(y_train_np.values, dtype=torch.float32).to(device)
-    y_test = torch.tensor(y_test_np.values, dtype=torch.float32).to(device)
+    y_train = torch.tensor(y_train.values, dtype=torch.float32).to(device)
+    y_test = torch.tensor(y_test.values, dtype=torch.float32).to(device)
     print(y_train.shape, y_test.shape)
     print(X_train.shape, y_train.shape, X_test.shape, y_test.shape)
     train_dataset = TensorDataset(X_train, y_train)
@@ -109,7 +110,7 @@ if __name__ == '__main__':
         # weight_decay = 0.02915625436117011
         # learning_rate = 0.0002382091521841793
         learning_rate = 0.0001
-        weight_decay = 0.06454389416796091
+        weight_decay = 0.01
 
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
