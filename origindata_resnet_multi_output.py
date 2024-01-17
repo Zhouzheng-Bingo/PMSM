@@ -106,8 +106,8 @@ if __name__ == '__main__':
         model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(device)
 
         criterion = nn.MSELoss()
-        # learning_rate = 0.000864293053363452
-        # weight_decay = 0.02915625436117011
+        # learning_rate = 2.5133636734727876e-05
+        # weight_decay = 0.0315365334590386
         # learning_rate = 0.0002382091521841793
         learning_rate = 0.0001
         weight_decay = 0.01
@@ -186,7 +186,7 @@ if __name__ == '__main__':
 
         # 保存模型
         model_save_path = './model/'
-        model_filename = 'model_checkpoint_epoch2_lagsEx5_block22.pth'
+        model_filename = 'model_checkpoint_epoch20_nolags_block22_Hyperparameter.pth'
 
         # 检查是否存在保存模型的目录，如果不存在则创建
         if not os.path.exists(model_save_path):
@@ -243,7 +243,7 @@ if __name__ == '__main__':
         model = CombinedModel(input_dim=1, hidden_dim=64, output_dim=4, num_blocks=num_residual_blocks, num_heads=4).to(
             device)
         # 加载保存的模型参数
-        model.load_state_dict(torch.load('./model/model_checkpoint_epoch2_lagsEx5_block22.pth'))
+        model.load_state_dict(torch.load('./model/model_checkpoint_epoch20_nolags_block22_Hyperparameter.pth'))
 
         # model.load_state_dict(torch.load('./model/model_checkpoint_epoch20_lags50_block22.pth')) # 如果模型没在内存加载模型
 
@@ -345,6 +345,6 @@ if __name__ == '__main__':
 
     if not os.path.exists('./pic'):
         os.makedirs('./pic')
-    plt.savefig('./pic/model_checkpoint_epoch2_lagsEx5_block22.png')
+    plt.savefig('./pic/model_checkpoint_epoch20_nolags_block22_Hyperparameter.png')
 
     plt.show()
