@@ -12,7 +12,6 @@ import json
 from origindata_preprocessing import load_and_preprocess_data
 
 
-
 def create_subplots_with_labels():
     fig, axs = plt.subplots(2, 2, figsize=(12, 8))
 
@@ -123,6 +122,14 @@ def weights_init(m):
         nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
+
+
+def rmse(predictions, targets):
+    return torch.sqrt(torch.mean((predictions - targets) ** 2))
+
+
+def mae(predictions, targets):
+    return torch.mean(torch.abs(predictions - targets))
 
 
 if __name__ == '__main__':
@@ -344,9 +351,15 @@ if __name__ == '__main__':
         y_test_np = y_test.cpu().numpy()
         print("Actual Values Min:", y_test_np.min())
         print("Actual Values Max:", y_test_np.max())
+        # 计算RMSE和MAE -后加的这5行
+        predictions_tensor = torch.tensor(predictions, dtype=torch.float32).to(y_test.device)
+        rmse_value = rmse(predictions_tensor, y_test)
+        mae_value = mae(predictions_tensor, y_test)
+
+        print(f"RMSE: {rmse_value.item()}")
+        print(f"MAE: {mae_value.item()}")
     else:
         print("Invalid combination of train_flag and test_flag.")
-
 
     # 读取损失值
     loss_directory = 'loss'
@@ -386,7 +399,7 @@ if __name__ == '__main__':
     plt.tight_layout()
 
     # 保存图表为文件
-    output_file_path_with_labels = './pic/paper_DT_2.png'
+    output_file_path_with_labels = './pic/paper_DT_3.png'
     plt.savefig(output_file_path_with_labels)
 
     # 显示图表
